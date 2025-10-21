@@ -1,0 +1,151 @@
+{
+    "pubmed": {
+        "email": "${PUBMED_EMAIL}",
+        "api_key": "${PUBMED_API_KEY}",
+        "batch_size": 50,
+        "max_retries": 5,
+        "retry_wait_time": 5,
+        "api_wait_time": 0.5,
+        "output_dir": "./results",
+        "log_dir": "./logs"
+    },
+    "llm_providers": {
+        "deepseek": {
+            "api_base": "${DEEPSEEK_BASE_URL}",
+            "api_key": "${DEEPSEEK_API_KEY}",
+            "model": "deepseek-chat",
+            "temperature": 0.1,
+            "max_tokens": 4000,
+            "timeout": 60
+        },
+        "openai": {
+            "api_base": "${OPENAI_BASE_URL}",
+            "api_key": "${OPENAI_API_KEY}",
+            "model": "gpt-3.5-turbo",
+            "temperature": 0.1,
+            "max_tokens": 4000,
+            "timeout": 60
+        },
+        "qwen": {
+            "api_base": "${QWEN_BASE_URL}",
+            "api_key": "${QWEN_API_KEY}",
+            "model": "qwen-turbo",
+            "temperature": 0.1,
+            "max_tokens": 4000,
+            "timeout": 60
+        },
+        "volcengine": {
+            "api_base": "${VOLCENGINE_BASE_URL}",
+            "api_key": "${VOLCENGINE_API_KEY}",
+            "model": "ep-20241013000000-xxxxx",
+            "temperature": 0.1,
+            "max_tokens": 4000,
+            "timeout": 60
+        }
+    },
+    "text_extraction": {
+        "enable_pmc_api": true,
+        "enable_pdf_extraction": true,
+        "max_text_length": 50000,
+        "pmc_api_base": "https://www.ncbi.nlm.nih.gov/research/bionlp/RESTful/pmcoa.cgi/BioC_json",
+        "pdf_timeout": 30,
+        "ocr_timeout": 60,
+        "supported_formats": [
+            "pdf",
+            "pmc"
+        ]
+    },
+    "extraction": {
+        "text_limit": 15000,
+        "section_filters": [
+            "abstract",
+            "introduction",
+            "background",
+            "methods",
+            "methodology",
+            "materials and methods",
+            "results",
+            "findings",
+            "discussion",
+            "conclusion",
+            "conclusions"
+        ],
+        "exclude_sections": [
+            "references",
+            "reference",
+            "bibliography",
+            "acknowledgments",
+            "acknowledgements",
+            "funding",
+            "conflict of interest",
+            "author contributions",
+            "figures",
+            "tables",
+            "supplementary",
+            "appendix"
+        ],
+        "key_section_ratio": {
+            "abstract": 0.15,
+            "introduction": 0.2,
+            "methods": 0.25,
+            "results": 0.25,
+            "discussion": 0.15
+        }
+    },
+    "optimization": {
+        "enable_section_filtering": true,
+        "enable_smart_compression": true,
+        "enable_hierarchical_extraction": false,
+        "compression_ratio": 0.7,
+        "min_section_length": 100,
+        "max_section_length": 3000
+    },
+    "output": {
+        "csv_encoding": "utf-8-sig",
+        "date_format": "%Y-%m-%d",
+        "na_values": [
+            "NA",
+            "N/A",
+            "Not mentioned",
+            "Not specified",
+            ""
+        ],
+        "max_cell_length": 1000,
+        "enable_backup": true,
+        "default_language": "Chinese",
+        "citation_details": {
+            "fetch_detailed_pmid_lists": true,
+            "citation_dir": "citations"
+        }
+    },
+    "processing": {
+        "max_workers": 4,
+        "batch_size": 10,
+        "save_interval": 30,
+        "enable_resume": true,
+        "temp_dir": "./temp"
+    },
+    "language": {
+        "default_output_language": "English",
+        "supported_languages": [
+            "Chinese",
+            "English",
+            "Spanish",
+            "French",
+            "German",
+            "Japanese",
+            "Korean"
+        ],
+        "language_mapping": {
+            "zh": "Chinese",
+            "en": "English",
+            "es": "Spanish",
+            "fr": "French",
+            "de": "German",
+            "ja": "Japanese",
+            "ko": "Korean",
+            "中文": "Chinese",
+            "英文": "English"
+        }
+    }
+}

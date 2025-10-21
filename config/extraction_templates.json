@@ -1,0 +1,247 @@
+{
+    "standard": {
+        "name": "Standard Medical Literature Information Extraction",
+        "description": "Extract standard structured information from medical literature",
+        "version": "1.0",
+        "fields": {
+            "research_background": {
+                "name": "Research Background",
+                "description": "Background, motivation and significance of the research",
+                "csv_header": "Research_Background",
+                "prompt_hint": "research background, motivation, significance or research origin",
+                "required": true
+            },
+            "theoretical_framework": {
+                "name": "Theoretical Framework",
+                "description": "Theoretical framework or model used",
+                "csv_header": "Theoretical_Framework",
+                "prompt_hint": "theoretical basis, conceptual framework or theoretical model",
+                "required": false
+            },
+            "existing_research": {
+                "name": "Existing Research",
+                "description": "Existing research achievements and their shortcomings",
+                "csv_header": "Existing_Research",
+                "prompt_hint": "previous research achievements, current research status and limitations",
+                "required": true
+            },
+            "research_objectives": {
+                "name": "Research Objectives",
+                "description": "Clear research objectives",
+                "csv_header": "Research_Objectives",
+                "prompt_hint": "specific research objectives and purposes",
+                "required": true
+            },
+            "research_questions": {
+                "name": "Research Questions",
+                "description": "Research questions or hypotheses",
+                "csv_header": "Research_Questions",
+                "prompt_hint": "research questions, hypotheses or propositions to be verified",
+                "required": true
+            },
+            "sample_size": {
+                "name": "Sample Size",
+                "description": "Number of research samples",
+                "csv_header": "Sample_Size",
+                "prompt_hint": "number of research subjects, sample size",
+                "required": true
+            },
+            "study_region": {
+                "name": "Study Region",
+                "description": "Research location or region",
+                "csv_header": "Study_Region",
+                "prompt_hint": "research location, region or institution",
+                "required": false
+            },
+            "experimental_conditions": {
+                "name": "Experimental Conditions",
+                "description": "Specific experimental conditions and environment",
+                "csv_header": "Experimental_Conditions",
+                "prompt_hint": "experimental design, condition settings, environmental control",
+                "required": false
+            },
+            "data_sources": {
+                "name": "Data Sources",
+                "description": "Sources of research data",
+                "csv_header": "Data_Sources",
+                "prompt_hint": "data collection sources, databases or survey methods",
+                "required": true
+            },
+            "methods_tools": {
+                "name": "Methods and Tools",
+                "description": "Methods, tools, statistical models or software used",
+                "csv_header": "Methods_Tools",
+                "prompt_hint": "research methods, analysis tools, statistical methods, software used",
+                "required": true
+            },
+            "variables": {
+                "name": "Variable Settings",
+                "description": "Settings of independent, dependent, and control variables",
+                "csv_header": "Variables",
+                "prompt_hint": "independent variables, dependent variables, control variables, covariates",
+                "required": false
+            },
+            "key_findings": {
+                "name": "Key Findings",
+                "description": "Main research findings (quantitative/qualitative)",
+                "csv_header": "Key_Findings",
+                "prompt_hint": "main research results, key findings, important data",
+                "required": true
+            },
+            "main_conclusions": {
+                "name": "Main Conclusions",
+                "description": "Main conclusions from data analysis",
+                "csv_header": "Main_Conclusions",
+                "prompt_hint": "main conclusions drawn from data analysis",
+                "required": true
+            },
+            "hypothesis_evidence": {
+                "name": "Hypothesis Evidence",
+                "description": "Evidence supporting or refuting hypotheses",
+                "csv_header": "Hypothesis_Evidence",
+                "prompt_hint": "evidence supporting or refuting research hypotheses",
+                "required": false
+            },
+            "result_interpretation": {
+                "name": "Result Interpretation",
+                "description": "Interpretation of research results",
+                "csv_header": "Result_Interpretation",
+                "prompt_hint": "interpretation and explanation of research results",
+                "required": true
+            },
+            "comparison_previous": {
+                "name": "Comparison with Previous Studies",
+                "description": "Comparison with previous research",
+                "csv_header": "Comparison_Previous",
+                "prompt_hint": "comparison and contrast with previous research results",
+                "required": false
+            },
+            "theoretical_significance": {
+                "name": "Theoretical Significance",
+                "description": "Theoretical significance and contribution of the research",
+                "csv_header": "Theoretical_Significance",
+                "prompt_hint": "theoretical contribution, theoretical significance, academic value",
+                "required": false
+            },
+            "practical_value": {
+                "name": "Practical Value",
+                "description": "Practical value and application of the research",
+                "csv_header": "Practical_Value",
+                "prompt_hint": "practical application value, clinical significance, practical guidance",
+                "required": false
+            },
+            "future_directions": {
+                "name": "Future Directions",
+                "description": "Future research directions and recommendations",
+                "csv_header": "Future_Directions",
+                "prompt_hint": "future research recommendations, research prospects, follow-up work",
+                "required": false
+            },
+            "data_limitations": {
+                "name": "Data Limitations",
+                "description": "Limitations in data aspects",
+                "csv_header": "Data_Limitations",
+                "prompt_hint": "data collection, data quality, sample limitations",
+                "required": false
+            },
+            "methodological_limitations": {
+                "name": "Methodological Limitations",
+                "description": "Limitations in methodological aspects",
+                "csv_header": "Method_Limitations",
+                "prompt_hint": "methodological limitations, technical constraints, design flaws",
+                "required": false
+            },
+            "external_validity": {
+                "name": "External Validity",
+                "description": "External validity and scope of applicability issues",
+                "csv_header": "External_Validity",
+                "prompt_hint": "result generalizability, scope of applicability, external validity",
+                "required": false
+            }
+        }
+    },
+    "custom_template_example": {
+        "name": "Custom Template Example - Aging Biomarkers Research",
+        "description": "A detailed custom template example for aging biomarkers research. Users can reference this format to create their own extraction templates",
+        "version": "1.0",
+        "fields": {
+            "biomarker_type": {
+                "name": "Biomarker Type",
+                "description": "What biomarkers are studied in the research",
+                "csv_header": "Biomarker_Type",
+                "prompt_hint": "specific biomarker names, types",
+                "required": true
+            },
+            "biomarker_category": {
+                "name": "Biomarker Category",
+                "description": "Single biomarker or combined biomarkers",
+                "csv_header": "Biomarker_Category",
+                "prompt_hint": "single marker, combined markers, panel markers",
+                "required": true
+            },
+            "molecular_type": {
+                "name": "Molecular Type",
+                "description": "What category (Protein/DNA/RNA/Metabolite etc.)",
+                "csv_header": "Molecular_Type",
+                "prompt_hint": "protein, DNA, RNA, metabolite, lipid molecular types",
+                "required": true
+            },
+            "population_ethnicity": {
+                "name": "Population Ethnicity",
+                "description": "Ethnic background of study population",
+                "csv_header": "Population_Ethnicity",
+                "prompt_hint": "race, ethnicity, population background",
+                "required": true
+            },
+            "gender_ratio": {
+                "name": "Gender Ratio",
+                "description": "Male-female ratio of study samples",
+                "csv_header": "Gender_Ratio",
+                "prompt_hint": "male-female ratio, gender distribution",
+                "required": true
+            },
+            "age_range": {
+                "name": "Age Range",
+                "description": "Age range of study subjects",
+                "csv_header": "Age_Range",
+                "prompt_hint": "age range, mean age, age groups",
+                "required": true
+            },
+            "biomarker_description": {
+                "name": "Biomarker Description",
+                "description": "Specific description and function of the biomarkers",
+                "csv_header": "Biomarker_Description",
+                "prompt_hint": "biomarker function, characteristics, biological significance",
+                "required": true
+            },
+            "detection_method": {
+                "name": "Detection Method",
+                "description": "Detection methods and techniques for biomarkers",
+                "csv_header": "Detection_Method",
+                "prompt_hint": "detection technology, experimental methods, analysis platforms",
+                "required": true
+            },
+            "clinical_application": {
+                "name": "Clinical Application",
+                "description": "Clinical application value of biomarkers",
+                "csv_header": "Clinical_Application",
+                "prompt_hint": "clinical significance, diagnostic value, prognostic assessment",
+                "required": false
+            },
+            "aging_association": {
+                "name": "Aging Association",
+                "description": "Association with aging processes",
+                "csv_header": "Aging_Association",
+                "prompt_hint": "relationship with aging, aging mechanisms, aging processes",
+                "required": true
+            },
+            "validation_status": {
+                "name": "Validation Status",
+                "description": "Validation status and reliability of biomarkers",
+                "csv_header": "Validation_Status",
+                "prompt_hint": "validation studies, reproducibility, reliability assessment",
+                "required": false
+            }
+        }
+    }
+}

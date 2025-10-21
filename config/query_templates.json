@@ -1,0 +1,50 @@
+{
+    "query_tasks": [
+        {
+            "name": "COVID-19与糖尿病研究",
+            "query": "(COVID-19[ti] OR SARS-CoV-2[ti] OR coronavirus[ti]) AND (diabetes[ti] OR diabetic[ti] OR hyperglycemia[ti]) AND (\"2020/01/01\"[Date - Publication] : \"2024/12/31\"[Date - Publication])",
+            "max_results": null,
+            "include_fulltext": false,
+            "output_file": "covid_diabetes_2020_2024.csv",
+            "description": "研究COVID-19与糖尿病关系的文献，时间范围2020-2024年"
+        },
+        {
+            "name": "衰老生物标志物研究",
+            "query": "(aging[ti] OR ageing[ti] OR senescence[ti]) AND (biomarker[ti] OR marker[ti] OR indicator[ti]) AND (protein[ti] OR DNA[ti] OR RNA[ti] OR molecular[ti]) AND (\"2020/01/01\"[Date - Publication] : \"2024/12/31\"[Date - Publication])",
+            "max_results": 100,
+            "include_fulltext": true,
+            "output_file": "aging_biomarkers_2020_2024.csv",
+            "description": "衰老相关生物标志物研究，包含蛋白质、DNA、RNA等分子标记物",
+            "custom_fields": [
+                "文章中研究的生物标志物是什么",
+                "属于单个生物标志物还是组合生物标志物",
+                "属于什么分类（Protein/DNA/RNA/Other）",
+                "研究样本人群的种族背景",
+                "研究样本的男女比例",
+                "关于该生物标志物的具体描述和功能"
+            ]
+        },
+        {
+            "name": "癌症免疫治疗最新研究",
+            "query": "(cancer[ti] OR tumor[ti] OR neoplasm[ti] OR carcinoma[ti]) AND (immunotherapy[ti] OR \"immune therapy\"[ti] OR \"checkpoint inhibitor\"[ti] OR CAR-T[ti]) AND (\"2023/01/01\"[Date - Publication] : \"2024/12/31\"[Date - Publication])",
+            "max_results": 200,
+            "include_fulltext": true,
+            "output_file": "cancer_immunotherapy_2023_2024.csv",
+            "description": "最新的癌症免疫治疗研究，包括免疫检查点抑制剂和CAR-T细胞治疗",
+            "custom_fields": [
+                "研究的癌症类型",
+                "使用的免疫治疗方法",
+                "治疗效果和响应率",
+                "主要的副作用或毒性",
+                "患者选择标准"
+            ]
+        }
+    ],
+    "default_settings": {
+        "max_results": 100,
+        "include_fulltext": false,
+        "output_dir": "results/batch_queries",
+        "task_wait_time": 5,
+        "retry_failed_tasks": true
+    }
+}

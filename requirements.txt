@@ -1,0 +1,57 @@
+# PubMiner - 模块化文献分析工具依赖
+
+# 核心依赖
+requests>=2.28.0
+pandas>=1.5.0
+numpy>=1.21.0
+
+# 文档处理
+PyMuPDF>=1.20.0  # PDF文本提取
+pdf2image
+pytesseract>=0.3.10  # OCR文字识别
+Pillow>=9.0.0  # 图像处理
+
+# 网络请求和解析
+lxml>=4.9.0  # XML解析
+beautifulsoup4>=4.11.0  # HTML解析
+urllib3>=1.26.0
+
+# 数据处理
+openpyxl>=3.0.0  # Excel文件处理
+xlsxwriter>=3.0.0  # Excel写入
+
+# 日志和配置
+colorlog>=6.0.0  # 彩色日志输出
+python-dotenv>=0.19.0  # 环境变量管理
+
+# Web界面 (可选)
+flask>=2.2.0
+flask-cors>=3.0.0
+
+# 异步处理
+aiohttp>=3.8.0
+asyncio-throttle>=1.0.0
+
+# 文本处理
+regex>=2022.0.0  # 高级正则表达式
+jieba>=0.42.1  # 中文分词 (可选)
+
+# 科学计算
+scipy>=1.9.0  # 科学计算库
+
+# 开发和测试 (可选)
+pytest>=7.0.0
+pytest-cov>=4.0.0
+black>=22.0.0  # 代码格式化
+flake8>=5.0.0  # 代码检查
+
+# 性能监控 (可选)
+psutil>=5.9.0  # 系统资源监控
+memory-profiler>=0.60.0  # 内存分析
+
+biopython
+tqdm
+openai
+
+# 注意: 
+# 1. OCR功能需要安装 Tesseract OCR 引擎
