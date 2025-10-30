@@ -9,12 +9,12 @@ PubMiner 是一个专门针对 PubMed 医学文献的智能分析工具，通过
 ## 🎯 核心特性
 
 - **🔍 智能检索**：支持复杂 PubMed 查询语法，自动获取引用关系
-- **📄 多源提取**：集成 PMC 全文、PDF 解析和 OCR 识别
-- **🧠 AI 分析**：支持 OpenAI、DeepSeek、通义千问等多个 LLM 提供商
-- **📊 结构化输出**：22 个标准字段 + 自定义字段，输出标准 CSV 格式
+- **📄 多源提取**：集成 PMC 全文、 PDF 解析和 OCR 识别
+- **🧠 AI 分析**：支持 OpenAI、 DeepSeek、通义千问等多个 LLM 提供商
+- **📊 结构化输出**： 22 个标准字段 + 自定义字段，输出标准 CSV 格式
 - **⚡ 高效处理**：并发处理、断点续传、智能重试机制
 - **💰 成本优化**：文本压缩、批量处理，显著降低 API 调用成本
-- **📋 批量任务**：JSON 配置驱动的自动化批量分析
+- **📋 批量任务**： JSON 配置驱动的自动化批量分析
 
 ## 🏗️ 项目架构
 
@@ -53,7 +53,7 @@ PubMiner/
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/your-repo/PubMiner.git
+git clone https://github.com/WhyLIM/PubMiner.git
 cd PubMiner
 
 # 2. 安装依赖
@@ -127,12 +127,12 @@ pmid_results = miner.analyze_by_pmids(
 
 # 保存结果
 output_path = miner.save_results(results, 'analysis_results')
-print(f"结果已保存至：{output_path}")
+print(f" 结果已保存至：{output_path}")
 ```
 
 ## 📊 提取字段体系
 
-### 标准模板（22 个字段）
+### 标准模板（ 22 个字段）
 
 涵盖医学文献分析的核心要素：
 
@@ -175,16 +175,16 @@ print(f"结果已保存至：{output_path}")
 {
     "query_tasks": [
         {
-            "name": "COVID-19 与糖尿病研究",
+            "name": "COVID-19 与糖尿病研究 ",
             "query": "(COVID-19[ti] OR SARS-CoV-2[ti]) AND (diabetes[ti] OR diabetic[ti])",
             "max_results": 100,
             "include_fulltext": true,
             "output_file": "covid_diabetes.csv",
-            "language": "Chinese",
+            "language": "English",
             "custom_fields": [
-                "研究的糖尿病类型",
-                "COVID-19 对糖尿病患者的影响",
-                "推荐的治疗方案"
+                " 研究的糖尿病类型 ",
+                "COVID-19 对糖尿病患者的影响 ",
+                " 推荐的治疗方案 "
             ]
         }
     ],
@@ -192,7 +192,7 @@ print(f"结果已保存至：{output_path}")
         "max_results": 100,
         "include_fulltext": false,
         "output_dir": "results/batch_queries",
-        "language": "Chinese"
+        "language": "English"
     }
 }
 ```
@@ -214,7 +214,7 @@ PubMiner 集成了强大的 PDF 下载模块，支持多源智能下载：
 ### 🚀 核心特性
 
 - **🔍 开放获取检测**：自动识别开放获取文章，优先使用免费源
-- **📚 多源下载策略**：PMC、SciHub 等多个数据源智能切换
+- **📚 多源下载策略**： PMC、 SciHub 等多个数据源智能切换
 - **🔄 强化重试机制**：指数退避重试，网络容错能力强
 - **📝 统一文件命名**：`{doi}_{source}.pdf` 格式，便于管理
 - **✅ 文件完整性校验**：自动验证 PDF 文件有效性
@@ -224,7 +224,7 @@ PubMiner 集成了强大的 PDF 下载模块，支持多源智能下载：
 
 1. **开放获取检测**：通过 Crossref API 检查文章开放状态
 2. **PMC 优先下载**：开放获取文章优先从 PMC 下载
-3. **SciHub 备用**：PMC 失败时自动切换到 SciHub
+3. **SciHub 备用**： PMC 失败时自动切换到 SciHub
 4. **重试机制**：网络问题时自动重试，最大化成功率
 
 ### 💡 使用示例
@@ -248,9 +248,9 @@ result = downloader.download_by_doi(
 
 # 检查结果
 if result['success']:
-    print(f"下载成功：{result['local_path']}")
-    print(f"来源：{result['source']}")  # PMC 或 SciHub
-    print(f"文件大小：{result['file_size']/1024:.1f}KB")
+    print(f" 下载成功：{result['local_path']}")
+    print(f" 来源：{result['source']}")  # PMC 或 SciHub
+    print(f" 文件大小：{result['file_size']/1024:.1f}KB")
 
 # 批量下载
 papers = [
@@ -312,10 +312,10 @@ python -m pytest tests/ -v
 
 ### 测试覆盖范围
 
-- ✅ **基础功能测试**：PubMed 搜索、数据提取、CSV 导出
+- ✅ **基础功能测试**： PubMed 搜索、数据提取、 CSV 导出
 - ✅ **引用功能测试**：引用查询、参考文献分析
 - ✅ **批量查询测试**：配置文件批量处理、模板系统
-- ✅ **文本分析测试**：全文提取、AI 驱动分析
+- ✅ **文本分析测试**：全文提取、 AI 驱动分析
 - ✅ **集成性能测试**：端到端工作流、性能基准
 - ✅ **PDF 下载测试**：多源下载、重试机制、文件命名验证
 
@@ -325,17 +325,17 @@ python -m pytest tests/ -v
 
 生成的 CSV 文件包含以下列：
 
-- **基本信息**：PMID, Title, Authors, Journal, DOI, Year 等
-- **引用信息**：Cited_Count, References_Count 等
-- **提取结果**：22 个标准字段 + 自定义字段
-- **质量控制**：extraction_status, quality_score 等
+- **基本信息**： PMID, Title, Authors, Journal, DOI, Year 等
+- **引用信息**： Cited_Count, References_Count 等
+- **提取结果**： 22 个标准字段 + 自定义字段
+- **质量控制**： extraction_status, quality_score 等
 
 ### 执行报告
 
 自动生成详细的执行报告：
 
 - 处理统计（成功率、耗时等）
-- 成本分析（Token 使用、费用估算）
+- 成本分析（ Token 使用、费用估算）
 - 质量评估（提取质量分布）
 - 错误分析（失败原因统计）
 
@@ -368,7 +368,7 @@ python -m pytest tests/ -v
 
 ```bash
 # 克隆开发版本
-git clone https://github.com/your-repo/PubMiner.git
+git clone https://github.com/WhyLIM/PubMiner.git
 cd PubMiner
 
 # 安装开发依赖
@@ -380,4 +380,4 @@ python -m pytest tests/
 
 ## 📄 许可证
 
-本项目采用 [MIT 许可证](LICENSE)。
+本项目采用 [MIT 许可证 ](LICENSE)。

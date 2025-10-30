@@ -26,6 +26,7 @@ from core.llm_analyzer import LLMAnalyzer
 from core.data_processor import DataProcessor
 from core.query_manager import QueryManager
 from utils.logger import setup_logger
+from utils.rich_logger import setup_rich_logger, get_rich_logger, print_welcome, print_config_summary, print_results_summary
 
 
 class PubMiner:
@@ -46,6 +47,15 @@ class PubMiner:
 
         self.config_manager = ConfigManager(str(config_path))
         self.llm_provider = llm_provider
+        
+        # 设置Rich日志系统
+        self.rich_logger = setup_rich_logger(
+            level=logging.INFO,
+            log_dir=Path('logs'),
+            console_width=120,
+            show_time=True,
+            show_path=False
+        )
         self.logger = setup_logger(logging.INFO, Path('logs'))
 
         # 初始化组件
@@ -330,9 +340,19 @@ def main():
     """主函数"""
     args = parse_arguments()
 
-    # 设置日志
+    # 设置Rich日志系统
     log_level = logging.DEBUG if args.verbose else logging.INFO
+    rich_logger = setup_rich_logger(
+        level=log_level,
+        log_dir=Path('logs'),
+        console_width=120,
+        show_time=True,
+        show_path=args.verbose
+    )
     logger = setup_logger(log_level, Path('logs'))
+
+    # 打印欢迎信息
+    print_welcome()
 
     try:
         # 处理创建查询配置示例的情况
@@ -351,95 +371,121 @@ def main():
 
         # 处理批量查询配置的情况
         if args.batch_config:
-            logger.info("🚀 启动 PubMiner 批量查询模式")
-            logger.info(f"配置文件: {args.batch_config}")
+            rich_logger.print_section("批量查询模式")
+            rich_logger.info(f"配置文件: [path]{args.batch_config}[/path]")
 
             # 初始化PubMiner
             pubminer = PubMiner(args.config, args.llm_provider)
 
             # 执行批量查询
-            results = pubminer.execute_batch_queries(args.batch_config)
+            with rich_logger.status("执行批量查询..."):
+                results = pubminer.execute_batch_queries(args.batch_config)
 
-            logger.info("🎉 批量查询执行完成！")
+            rich_logger.success("批量查询执行完成！")
             return
 
-        logger.info("🚀 启动 PubMiner 文献分析工具")
-        logger.info(f"输出目录: {args.output_dir}")
-        logger.info(f"输出文件: {args.output}")
+        rich_logger.print_section("文献分析模式")
+        rich_logger.info(f"输出目录: [path]{args.output_dir}[/path]")
+        rich_logger.info(f"输出文件: [path]{args.output}[/path]")
 
         # 1. 加载配置
-        logger.info("📋 加载配置文件...")
-        config_manager = ConfigManager(args.config)
+        rich_logger.print_section("配置加载")
+        with rich_logger.status("加载配置文件..."):
+            config_manager = ConfigManager(args.config)
 
         # 覆盖配置参数
         if args.api_key:
             config_manager.set_api_key(args.llm_provider, args.api_key)
+            rich_logger.info("API密钥已更新")
         if args.llm_model:
             config_manager.set_model(args.llm_provider, args.llm_model)
+            rich_logger.info(f"模型已设置为: [highlight]{args.llm_model}[/highlight]")
+
+        # 显示配置摘要
+        config_summary = {
+            "配置文件": args.config,
+            "LLM提供商": args.llm_provider,
+            "最大工作线程": args.max_workers,
+            "批处理大小": args.batch_size,
+            "文本限制": f"{args.text_limit} 字符" if args.text_limit else "无限制"
+        }
+        print_config_summary(config_summary)
 
         # 2. 获取文献基本信息
-        logger.info("📚 获取文献基本信息...")
+        rich_logger.print_section("文献获取")
         fetcher = PubMedFetcher(config_manager.get_pubmed_config())
 
-        if args.query:
-            papers = fetcher.fetch_by_query(args.query, resume=args.resume)
-        elif args.pmids:
-            pmid_list = [pmid.strip() for pmid in args.pmids.split(',')]
-            papers = fetcher.fetch_by_pmid_list(pmid_list, resume=args.resume)
-        elif args.pmid_file:
-            with open(args.pmid_file, 'r', encoding='utf-8') as f:
-                pmid_list = [line.strip() for line in f if line.strip()]
-            papers = fetcher.fetch_by_pmid_list(pmid_list, resume=args.resume)
+        with rich_logger.progress("获取文献信息...") as (progress, task):
+            if args.query:
+                rich_logger.info(f"查询语句: [highlight]{args.query}[/highlight]")
+                papers = fetcher.fetch_by_query(args.query, resume=args.resume)
+            elif args.pmids:
+                pmid_list = [pmid.strip() for pmid in args.pmids.split(',')]
+                rich_logger.info(f"PMID列表: [number]{len(pmid_list)}[/number] 个")
+                papers = fetcher.fetch_by_pmid_list(pmid_list, resume=args.resume)
+            elif args.pmid_file:
+                with open(args.pmid_file, 'r', encoding='utf-8') as f:
+                    pmid_list = [line.strip() for line in f if line.strip()]
+                rich_logger.info(f"PMID文件: [path]{args.pmid_file}[/path] ([number]{len(pmid_list)}[/number] 个)")
+                papers = fetcher.fetch_by_pmid_list(pmid_list, resume=args.resume)
 
-        logger.info(f"✅ 获取到 {len(papers)} 篇文献的基本信息")
+        rich_logger.success(f"获取到 [number]{len(papers)}[/number] 篇文献的基本信息")
 
         if not papers:
-            logger.warning("⚠️ 未获取到任何文献，程序退出")
+            rich_logger.warning("未获取到任何文献，程序退出")
             return
 
         # 3. 提取全文内容
-        logger.info("📄 提取文献全文内容...")
+        rich_logger.print_section("全文提取")
         extractor = TextExtractor(config_manager.get_extraction_config())
-        papers_with_text = extractor.extract_batch(
-            papers, max_workers=args.max_workers, text_limit=args.text_limit)
+        
+        with rich_logger.progress("提取全文内容...") as (progress, task):
+            papers_with_text = extractor.extract_batch(
+                papers, max_workers=args.max_workers, text_limit=args.text_limit)
 
         valid_papers = [p for p in papers_with_text if p.get('full_text')]
-        logger.info(f"✅ 成功提取 {len(valid_papers)} 篇文献的全文内容")
+        rich_logger.success(f"成功提取 [number]{len(valid_papers)}[/number] 篇文献的全文内容")
 
         if not valid_papers:
-            logger.warning("⚠️ 未能提取到任何文献的全文内容，程序退出")
+            rich_logger.warning("未能提取到任何文献的全文内容，程序退出")
             return
 
         # 4. 加载提取模板
-        logger.info(f"🎯 加载提取模板: {args.template}")
+        rich_logger.print_section("模板配置")
+        rich_logger.info(f"提取模板: [highlight]{args.template}[/highlight]")
+        
         if args.custom_fields:
             template = config_manager.load_custom_template(args.custom_fields)
+            rich_logger.info(f"自定义字段: [number]{len(args.custom_fields)}[/number] 个")
         else:
             template = config_manager.get_extraction_template(args.template)
 
         # 5. LLM分析
+        rich_logger.print_section("AI分析")
         if not args.dry_run:
-            logger.info("🧠 开始大模型分析...")
+            rich_logger.info(f"LLM提供商: [highlight]{args.llm_provider}[/highlight]")
             analyzer = LLMAnalyzer(
                 config_manager.get_llm_config(args.llm_provider))
 
-            analyzed_papers = analyzer.analyze_batch(
-                valid_papers,
-                template,
-                batch_size=args.batch_size,
-                max_workers=args.max_workers)
+            with rich_logger.progress("执行AI分析...") as (progress, task):
+                analyzed_papers = analyzer.analyze_batch(
+                    valid_papers,
+                    template,
+                    batch_size=args.batch_size,
+                    max_workers=args.max_workers)
         else:
-            logger.info("🔍 试运行模式，跳过 LLM 分析")
+            rich_logger.warning("试运行模式，跳过 LLM 分析")
             analyzed_papers = valid_papers
 
         # 6. 数据处理和输出
-        logger.info("📊 处理数据并生成输出...")
+        rich_logger.print_section("结果输出")
         processor = DataProcessor(config_manager.get_output_config())
 
         output_path = Path(args.output_dir) / args.output
-        processor.generate_csv(analyzed_papers, template, output_path)
+        with rich_logger.status("生成CSV文件..."):
+            processor.generate_csv(analyzed_papers, template, output_path)
 
-        logger.info(f"🎉 分析完成！结果已保存到: {output_path}")
+        rich_logger.success(f"分析完成！结果已保存到: [path]{output_path}[/path]")
 
         # 7. 生成统计报告
         stats = processor.generate_statistics(analyzed_papers)

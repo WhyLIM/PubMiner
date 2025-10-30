@@ -112,7 +112,7 @@
         ],
         "max_cell_length": 1000,
         "enable_backup": true,
-        "default_language": "Chinese",
+        "default_language": "English",
         "citation_details": {
             "fetch_detailed_pmid_lists": true,
             "citation_dir": "citations"

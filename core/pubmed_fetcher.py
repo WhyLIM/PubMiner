@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-PubMed文献基本信息获取模块
+PubMed 文献基本信息获取模块
 
-基于PubEx项目，提供高效的文献信息爬取功能
+基于 PubEx 项目，提供高效的文献信息爬取功能
 包含断点续传、批量处理、引用关系分析等特性
 """
 
@@ -24,14 +24,14 @@ from utils.logger import LoggerMixin
 from utils.file_handler import FileHandler
 from utils.api_manager import api_manager
 
-# 禁用SSL警告
+# 禁用 SSL 警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 ssl._create_default_https_context = ssl._create_unverified_context
 
 logger = logging.getLogger(__name__)
 
 class PubMedFetcher(LoggerMixin):
-    """PubMed 文献信息获取器"""
+    """PubMed 文献信息获取器 """
     
     def __init__(self, config: Dict[str, Any]):
         """
@@ -73,7 +73,7 @@ class PubMedFetcher(LoggerMixin):
         # 提取日期的正则表达式
         self.date_pattern = re.compile(r'\b\d{4}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b')
         
-        # 设置API限流
+        # 设置 API 限流
         api_name = 'pubmed_with_key' if self.api_key else 'pubmed_no_key'
         self.api_name = api_name
         
@@ -88,7 +88,7 @@ class PubMedFetcher(LoggerMixin):
     @api_manager.with_retry(max_retries=5, retry_delay=2.0)
     def _fetch_with_retry(self, fetch_function, *args, **kwargs):
         """
-        带重试的API请求
+        带重试的 API 请求
         
         Args:
             fetch_function: Entrez 函数
@@ -106,11 +106,11 @@ class PubMedFetcher(LoggerMixin):
             return result
             
         except HTTPError as e:
-            self.logger.warning(f"HTTP 错误: {e.code} - {e.reason}")
+            self.logger.warning(f"HTTP 错误 : {e.code} - {e.reason}")
             self.stats["retries"] += 1
             raise
         except Exception as e:
-            self.logger.warning(f"API 调用错误: {e}")
+            self.logger.warning(f"API 调用错误 : {e}")
             self.stats["retries"] += 1
             raise
     
@@ -151,13 +151,13 @@ class PubMedFetcher(LoggerMixin):
         if not pmid_list:
             return citation_dict
         
-        # 如果不需要详细PMID列表，只获取数量
+        # 如果不需要详细 PMID 列表，只获取数量
         if not self.fetch_detailed_pmid_lists:
-            self.logger.debug(f"只获取引用数量，不获取详细PMID列表")
+            self.logger.debug(f" 只获取引用数量，不获取详细 PMID 列表 ")
             return self._fetch_citation_counts_only(pmid_list)
         
-        # 获取详细的PMID列表
-        self.logger.debug(f"获取详细的引用PMID列表")
+        # 获取详细的 PMID 列表
+        self.logger.debug(f" 获取详细的引用 PMID 列表 ")
         
         # 使用重试机制批量获取引用信息
         for attempt in range(self.max_retries):
@@ -196,24 +196,24 @@ class PubMedFetcher(LoggerMixin):
             except HTTPError as e:
                 if e.code in [429, 500, 502, 503, 504]:
                     wait_time = self.retry_wait_time * (attempt + 1)
-                    self.logger.warning(f"批量获取引用信息 HTTP 错误 {e.code}，等待 {wait_time} 秒后重试 (尝试 {attempt + 1}/{self.max_retries})...")
+                    self.logger.warning(f" 批量获取引用信息 HTTP 错误 {e.code}，等待 {wait_time} 秒后重试 ( 尝试 {attempt + 1}/{self.max_retries})...")
                     self.stats["retries"] += 1
                     time.sleep(wait_time)
                     continue
                 else:
-                    self.logger.error(f"批量获取引用信息 HTTP 错误: {e}")
+                    self.logger.error(f" 批量获取引用信息 HTTP 错误 : {e}")
                     break
             except Exception as e:
                 error_msg = str(e).lower()
                 if any(keyword in error_msg for keyword in ['eof', 'connection', 'closed', 'timeout', 'read failed']):
                     wait_time = self.retry_wait_time * (attempt + 1)
-                    self.logger.warning(f"批量获取引用信息网络错误，等待 {wait_time} 秒后重试 (尝试 {attempt + 1}/{self.max_retries}): {e}")
+                    self.logger.warning(f" 批量获取引用信息网络错误，等待 {wait_time} 秒后重试 ( 尝试 {attempt + 1}/{self.max_retries}): {e}")
                     self.stats["retries"] += 1
                     time.sleep(wait_time)
                     if attempt < self.max_retries - 1:
                         continue
                 else:
-                    self.logger.warning(f"批量获取引用信息失败: {e}")
+                    self.logger.warning(f" 批量获取引用信息失败 : {e}")
                     if attempt < self.max_retries - 1:
                         self.stats["retries"] += 1
                         time.sleep(self.retry_wait_time)
@@ -224,7 +224,7 @@ class PubMedFetcher(LoggerMixin):
     
     def _fetch_citation_counts_only(self, pmid_list: List[str]) -> Dict[str, tuple]:
         """
-        只获取引用数量，不获取详细的PMID列表
+        只获取引用数量，不获取详细的 PMID 列表
         
         Args:
             pmid_list: PMID 列表
@@ -264,7 +264,7 @@ class PubMedFetcher(LoggerMixin):
                             elif linkset["LinkName"] == "pubmed_pubmed_refs" and "Link" in linkset:
                                 references_count = len(linkset["Link"])
                     
-                    # 使用COUNT_ONLY标记传递数量信息
+                    # 使用 COUNT_ONLY 标记传递数量信息
                     citation_dict[pmid] = (
                         [f"COUNT_ONLY:{cited_count}"],  # 特殊标记表示只有数量
                         [f"COUNT_ONLY:{references_count}"]
@@ -275,24 +275,24 @@ class PubMedFetcher(LoggerMixin):
             except HTTPError as e:
                 if e.code in [429, 500, 502, 503, 504]:
                     wait_time = self.retry_wait_time * (attempt + 1)
-                    self.logger.warning(f"批量获取引用数量 HTTP 错误 {e.code}，等待 {wait_time} 秒后重试 (尝试 {attempt + 1}/{self.max_retries})...")
+                    self.logger.warning(f" 批量获取引用数量 HTTP 错误 {e.code}，等待 {wait_time} 秒后重试 ( 尝试 {attempt + 1}/{self.max_retries})...")
                     self.stats["retries"] += 1
                     time.sleep(wait_time)
                     continue
                 else:
-                    self.logger.error(f"批量获取引用数量 HTTP 错误: {e}")
+                    self.logger.error(f" 批量获取引用数量 HTTP 错误 : {e}")
                     break
             except Exception as e:
                 error_msg = str(e).lower()
                 if any(keyword in error_msg for keyword in ['eof', 'connection', 'closed', 'timeout', 'read failed']):
                     wait_time = self.retry_wait_time * (attempt + 1)
-                    self.logger.warning(f"批量获取引用数量网络错误，等待 {wait_time} 秒后重试 (尝试 {attempt + 1}/{self.max_retries}): {e}")
+                    self.logger.warning(f" 批量获取引用数量网络错误，等待 {wait_time} 秒后重试 ( 尝试 {attempt + 1}/{self.max_retries}): {e}")
                     self.stats["retries"] += 1
                     time.sleep(wait_time)
                     if attempt < self.max_retries - 1:
                         continue
                 else:
-                    self.logger.warning(f"批量获取引用数量失败: {e}")
+                    self.logger.warning(f" 批量获取引用数量失败 : {e}")
                     if attempt < self.max_retries - 1:
                         self.stats["retries"] += 1
                         time.sleep(self.retry_wait_time)
@@ -370,13 +370,13 @@ class PubMedFetcher(LoggerMixin):
             output_file: 输出文件路径
             
         Returns:
-            (已处理的 PMID 集合, 已有数据列表)
+            ( 已处理的 PMID 集合 , 已有数据列表 )
         """
         try:
             if output_file.exists() and output_file.stat().st_size > 0:
-                self.logger.info(f"📁 检测到现有数据文件: {output_file}")
+                self.logger.info(f" 📁 检测到现有数据文件 : {output_file}")
                 existing_df = pd.read_csv(output_file, keep_default_na=False, na_values=[''])
-                self.logger.info(f"📊 已有 {len(existing_df)} 篇文献，将进行断点续传")
+                self.logger.info(f" 📊 已有 {len(existing_df)} 篇文献，将进行断点续传 ")
                 
                 valid_pmids = existing_df['PMID'].dropna().astype(str)
                 valid_pmids = [pmid for pmid in valid_pmids if pmid.strip() and pmid != 'nan']
@@ -384,22 +384,22 @@ class PubMedFetcher(LoggerMixin):
             else:
                 return set(), []
         except Exception as e:
-            self.logger.error(f"读取现有数据时出错: {e}")
+            self.logger.error(f" 读取现有数据时出错 : {e}")
             return set(), []
     
     def save_results(self, data: List[Dict[str, Any]], output_file: Path):
         """
-        保存结果到CSV文件（使用DataProcessor处理引用详情配置）
+        保存结果到 CSV 文件（使用 DataProcessor 处理引用详情配置）
         
         Args:
             data: 数据列表
             output_file: 输出文件路径
         """
         try:
-            # 使用DataProcessor来处理CSV生成，支持引用详情配置
+            # 使用 DataProcessor 来处理 CSV 生成，支持引用详情配置
             from core.data_processor import DataProcessor
             
-            # 使用当前PubMedFetcher的配置（包含正确的引用详情设置）
+            # 使用当前 PubMedFetcher 的配置（包含正确的引用详情设置）
             output_config = {
                 'csv_encoding': 'utf-8-sig',
                 'date_format': '%Y-%m-%d',
@@ -409,7 +409,7 @@ class PubMedFetcher(LoggerMixin):
                 }
             }
             
-            # 创建DataProcessor实例
+            # 创建 DataProcessor 实例
             processor = DataProcessor(output_config)
             
             # 创建简单的模板（只包含基本字段，不包含提取字段）
@@ -420,24 +420,24 @@ class PubMedFetcher(LoggerMixin):
                 'fields': {}  # 空字段，只使用基本信息
             }
             
-            # 使用DataProcessor生成CSV（会应用引用详情配置）
+            # 使用 DataProcessor 生成 CSV（会应用引用详情配置）
             success = processor.generate_csv(data, basic_template, output_file)
             
             if success:
-                self.logger.debug(f"✅ 结果已保存: {output_file}")
+                self.logger.debug(f" ✅ 结果已保存 : {output_file}")
             else:
-                # 如果DataProcessor失败，回退到原始方法
-                self.logger.warning("⚠️ DataProcessor保存失败，使用基础方法")
+                # 如果 DataProcessor 失败，回退到原始方法
+                self.logger.warning(" ⚠️ DataProcessor 保存失败，使用基础方法 ")
                 self._save_results_basic(data, output_file)
             
         except Exception as e:
-            self.logger.error(f"❌ 保存数据时出错: {e}")
+            self.logger.error(f" ❌ 保存数据时出错 : {e}")
             # 出错时使用基础保存方法
             self._save_results_basic(data, output_file)
     
     def _save_results_basic(self, data: List[Dict[str, Any]], output_file: Path):
         """
-        基础CSV保存方法（不支持引用详情配置）
+        基础 CSV 保存方法（不支持引用详情配置）
         
         Args:
             data: 数据列表
@@ -448,7 +448,7 @@ class PubMedFetcher(LoggerMixin):
             df = df.fillna('NA')
             df.to_csv(output_file, index=False, na_rep='NA', encoding='utf-8-sig')
             
-            # 创建备份到results/backup目录
+            # 创建备份到 results/backup 目录
             backup_dir = Path('results') / 'backup'
             backup_dir.mkdir(parents=True, exist_ok=True)
             
@@ -456,12 +456,12 @@ class PubMedFetcher(LoggerMixin):
             backup_file = backup_dir / backup_filename
             
             df.to_csv(backup_file, index=False, na_rep='NA', encoding='utf-8-sig')
-            self.logger.debug(f"✅ 创建备份文件: {backup_file}")
+            self.logger.debug(f" ✅ 创建备份文件 : {backup_file}")
             
-            self.logger.debug(f"✅ 结果已保存: {output_file}")
+            self.logger.debug(f" ✅ 结果已保存 : {output_file}")
             
         except Exception as e:
-            self.logger.error(f"❌ 基础保存方法失败: {e}")
+            self.logger.error(f" ❌ 基础保存方法失败 : {e}")
             raise
     
     def fetch_by_query(self, query: str, resume: bool = True, max_results: int = None) -> List[Dict[str, Any]]:
@@ -469,24 +469,24 @@ class PubMedFetcher(LoggerMixin):
         根据查询词获取文献信息
         
         Args:
-            query: PubMed查询词
+            query: PubMed 查询词
             resume: 是否启用断点续传
             max_results: 最大结果数量限制
             
         Returns:
             文献信息列表
         """
-        self.logger.info(f"🔍 开始检索: {query}")
+        self.logger.info(f" 🔍 开始检索 : {query}")
         
         # 生成输出文件名
-        safe_query = re.sub(r'[^\w\s-]', '', query.replace(' ', '_'))[:50]
+        safe_query = re.sub(r'[ ^ \w\s-]', '', query.replace(' ', '_'))[:50]
         output_file = self.output_dir / f"pubminer_{safe_query}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         
         # 检查现有数据
         existing_pmids, existing_data = self.check_existing_data(output_file) if resume else (set(), [])
         
         # 搜索文献
-        self.logger.info("📊 正在搜索文献...")
+        self.logger.info(" 📊 正在搜索文献 ...")
         handle = self._fetch_with_retry(
             Entrez.esearch,
             db="pubmed",
@@ -504,19 +504,19 @@ class PubMedFetcher(LoggerMixin):
         # 应用最大结果数限制
         if max_results is not None and max_results > 0:
             count = min(count, max_results)
-            self.logger.info(f"📚 找到文献总数: {search_results.get('Count', 0)}, 限制获取: {count} 篇")
+            self.logger.info(f" 📚 找到文献总数 : {search_results.get('Count', 0)}, 限制获取 : {count} 篇 ")
         else:
-            self.logger.info(f"📚 找到 {count} 篇文献")
+            self.logger.info(f" 📚 找到 {count} 篇文献 ")
         
         self.stats["total_articles"] = count
         
         if count == 0:
-            self.logger.warning("⚠️ 没有找到符合条件的文献")
+            self.logger.warning(" ⚠️ 没有找到符合条件的文献 ")
             return []
         
-        # 获取所有PMID（用于断点续传判断）
+        # 获取所有 PMID（用于断点续传判断）
         if resume and existing_pmids:
-            self.logger.info("🔍 获取 PMID 列表用于断点续传...")
+            self.logger.info(" 🔍 获取 PMID 列表用于断点续传 ...")
             all_pmids = []
             pmid_batch_size = 9999
             
@@ -535,23 +535,23 @@ class PubMedFetcher(LoggerMixin):
                 all_pmids.extend(results["IdList"])
                 time.sleep(self.api_wait_time)
             
-            # 过滤已处理的PMID
+            # 过滤已处理的 PMID
             new_pmids = [pmid for pmid in all_pmids if pmid not in existing_pmids]
-            self.logger.info(f"📊 需要处理 {len(new_pmids)} 篇新文献")
+            self.logger.info(f" 📊 需要处理 {len(new_pmids)} 篇新文献 ")
             
             if len(new_pmids) == 0:
-                self.logger.info("✅ 所有文献都已处理完成")
+                self.logger.info(" ✅ 所有文献都已处理完成 ")
                 return existing_data
         
         # 批量获取文献详情
-        self.logger.info("📚 开始批量获取文献详情...")
+        self.logger.info(" 📚 开始批量获取文献详情 ...")
         data = list(existing_data)  # 复制现有数据
         
         # 进度条
         total_batches = (count + self.batch_size - 1) // self.batch_size
         batch_progress = tqdm(
             total=total_batches,
-            desc="📦 批次进度",
+            desc=" 📦 批次进度 ",
             unit="batch",
             position=0
         )
@@ -562,7 +562,7 @@ class PubMedFetcher(LoggerMixin):
             # 计算当前批次应该获取的数量
             current_batch_size = min(self.batch_size, count - start)
             
-            # 使用WebEnv和QueryKey获取数据
+            # 使用 WebEnv 和 QueryKey 获取数据
             handle = self._fetch_with_retry(
                 Entrez.efetch,
                 db="pubmed",
@@ -625,15 +625,15 @@ class PubMedFetcher(LoggerMixin):
         
         # 显示统计信息
         elapsed = (datetime.now() - self.stats["start_time"]).total_seconds() / 60
-        self.logger.info(f"✅ 完成! 总共处理 {len(data)} 篇文献")
-        self.logger.info(f"⏱️ 用时: {elapsed:.2f} 分钟")
-        self.logger.info(f"💾 结果保存至: {output_file}")
+        self.logger.info(f" ✅ 完成 ! 总共处理 {len(data)} 篇文献 ")
+        self.logger.info(f" ⏱️ 用时 : {elapsed:.2f} 分钟 ")
+        self.logger.info(f" 💾 结果保存至 : {output_file}")
         
         return data
     
     def fetch_by_pmid_list(self, pmid_list: List[str], resume: bool = True) -> List[Dict[str, Any]]:
         """
-        根据PMID列表获取文献信息
+        根据 PMID 列表获取文献信息
         
         Args:
             pmid_list: PMID 列表
@@ -643,10 +643,10 @@ class PubMedFetcher(LoggerMixin):
             文献信息列表
         """
         pmid_list = [str(pmid).strip() for pmid in pmid_list if str(pmid).strip()]
-        self.logger.info(f"📋 根据 PMID 列表获取文献信息，共 {len(pmid_list)} 个 PMID")
+        self.logger.info(f" 📋 根据 PMID 列表获取文献信息，共 {len(pmid_list)} 个 PMID")
         
         if not pmid_list:
-            self.logger.warning("⚠️ PMID 列表为空")
+            self.logger.warning(" ⚠️ PMID 列表为空 ")
             return []
         
         # 生成输出文件名
@@ -655,25 +655,25 @@ class PubMedFetcher(LoggerMixin):
         # 检查现有数据
         existing_pmids, existing_data = self.check_existing_data(output_file) if resume else (set(), [])
         
-        # 过滤已处理的PMID
+        # 过滤已处理的 PMID
         if resume and existing_pmids:
             pmid_list = [pmid for pmid in pmid_list if pmid not in existing_pmids]
-            self.logger.info(f"📊 需要处理 {len(pmid_list)} 个新 PMID")
+            self.logger.info(f" 📊 需要处理 {len(pmid_list)} 个新 PMID")
         
         if not pmid_list:
-            self.logger.info("✅ 所有 PMID 都已处理完成")
+            self.logger.info(" ✅ 所有 PMID 都已处理完成 ")
             return existing_data
         
         self.stats["total_articles"] = len(pmid_list)
         data = list(existing_data)
         
         # 批量处理
-        self.logger.info("📚 开始批量获取文献详情...")
+        self.logger.info(" 📚 开始批量获取文献详情 ...")
         
         total_batches = (len(pmid_list) + self.batch_size - 1) // self.batch_size
         batch_progress = tqdm(
             total=total_batches,
-            desc="📦 批次进度",
+            desc=" 📦 批次进度 ",
             unit="batch"
         )
         
@@ -715,7 +715,7 @@ class PubMedFetcher(LoggerMixin):
                 self.save_results(data, output_file)
                 
             except Exception as e:
-                self.logger.error(f"❌ 处理批次失败: {e}")
+                self.logger.error(f" ❌ 处理批次失败 : {e}")
                 continue
             
             batch_progress.update(1)
@@ -728,8 +728,8 @@ class PubMedFetcher(LoggerMixin):
         
         # 显示统计信息
         elapsed = (datetime.now() - self.stats["start_time"]).total_seconds() / 60
-        self.logger.info(f"✅ 完成! 总共处理 {len(data)} 篇文献")
-        self.logger.info(f"⏱️ 用时: {elapsed:.2f} 分钟")
-        self.logger.info(f"💾 结果保存至: {output_file}")
+        self.logger.info(f" ✅ 完成 ! 总共处理 {len(data)} 篇文献 ")
+        self.logger.info(f" ⏱️ 用时 : {elapsed:.2f} 分钟 ")
+        self.logger.info(f" 💾 结果保存至 : {output_file}")
         
         return data

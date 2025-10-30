@@ -418,6 +418,61 @@ class PDFDownloader(LoggerMixin):
 
         return filename
 
+    def _sanitize_doi(self, doi: str) -> str:
+        """将DOI转换为安全的文件名部分"""
+        if not doi:
+            return "unknown"
+        safe_doi = doi.replace('/', '_').replace('\\', '_')
+        safe_doi = ''.join(c for c in safe_doi if c.isalnum() or c in '._-')
+        return safe_doi
+
+    def _generate_filename(self, doi: str, source: str) -> str:
+        """根据DOI和来源生成统一格式的文件名，如 {doi}_{source}.pdf（source小写）"""
+        safe_doi = self._sanitize_doi(doi)
+        suffix = (source or "source").lower()
+        return f"{safe_doi}_{suffix}.pdf"
+
+    def download_from_scihub(self, doi: str) -> Tuple[bool, Optional[Path], Optional[str]]:
+        """从SciHub下载PDF，返回(成功, 路径, 错误)"""
+        try:
+            self.logger.info(f"尝试从SciHub下载: {doi}")
+            filename = f"{self._sanitize_doi(doi)}_SciHub.pdf"
+            output_path = self.download_dir / filename
+
+            success, error_msg = self.scihub.download_by_doi(doi, output_path)
+            if success:
+                if self._validate_pdf_file(output_path):
+                    file_size = output_path.stat().st_size
+                    self.logger.info(f"✅ SciHub下载成功: {filename} ({file_size} bytes)")
+                    return True, output_path, None
+                else:
+                    output_path.unlink(missing_ok=True)
+                    return False, None, "下载的PDF验证失败"
+            else:
+                return False, None, error_msg or "SciHub下载失败"
+        except Exception as e:
+            return False, None, str(e)
+
+    def download_with_retry(self, download_callable, *args, max_retries: Optional[int] = None,
+                            retry_delay: Optional[int] = None, **kwargs) -> Tuple[bool, Optional[Path], Optional[str]]:
+        """通用重试包装器，接受一个返回(成功, 路径, 错误)的下载函数"""
+        retries = max_retries if max_retries is not None else self.max_retries
+        delay = retry_delay if retry_delay is not None else self.retry_delay
+        last_error = None
+        for attempt in range(1, retries + 1):
+            try:
+                success, path, error = download_callable(*args, **kwargs)
+                if success:
+                    return True, path, None
+                last_error = error
+                self.logger.info(f"重试 {attempt}/{retries} 失败: {error}. 等待 {delay} 秒...")
+                time.sleep(delay)
+            except Exception as e:
+                last_error = str(e)
+                self.logger.info(f"重试 {attempt}/{retries} 异常: {e}. 等待 {delay} 秒...")
+                time.sleep(delay)
+        return False, None, last_error or "重试后仍失败"
+
     def _check_file_integrity(self,
                               file_path: Path,
                               expected_size: int = None) -> bool:

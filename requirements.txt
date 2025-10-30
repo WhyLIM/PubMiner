@@ -51,6 +51,7 @@ memory-profiler>=0.60.0  # 内存分析
 
 biopython
 tqdm
+rich
 openai
 
 # 注意: 
