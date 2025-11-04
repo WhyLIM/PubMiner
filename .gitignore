@@ -49,3 +49,7 @@ htmlcov/
 
 ref_projects/
 tests/
+
+.claude/
+cache/
+*CLAUDE.md

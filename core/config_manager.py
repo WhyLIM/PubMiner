@@ -124,7 +124,7 @@ class ConfigManager:
                 }
             },
             "extraction": {
-                "text_limit": 15000,
+                "text_limit": -1,
                 "section_filters": ["abstract", "introduction", "methods", "results", "discussion", "conclusion"],
                 "exclude_sections": ["references", "acknowledgments", "funding", "figures", "tables"]
             },

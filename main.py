@@ -5,10 +5,10 @@ PubMiner - 模块化文献分析工具
 主程序入口
 
 功能：
-1. 获取PubMed文献基本信息
+1. 获取 PubMed 文献基本信息
 2. 提取全文内容（PMC/PDF）
 3. 基于大模型的结构化信息提取
-4. 生成标准化CSV报告
+4. 生成标准化 CSV 报告
 """
 
 import sys
@@ -16,7 +16,7 @@ import argparse
 import logging
 from pathlib import Path
 
-# 添加项目根目录到Python路径
+# 添加项目根目录到 Python 路径
 sys.path.append(str(Path(__file__).parent))
 
 from core.config_manager import ConfigManager
@@ -34,11 +34,11 @@ class PubMiner:
 
     def __init__(self, config_path=None, llm_provider='deepseek'):
         """
-        初始化PubMiner
-        
+        初始化 PubMiner
+
         Args:
             config_path: 配置文件路径
-            llm_provider: LLM提供商
+            llm_provider: LLM 提供商
         """
         # 如果没有指定配置路径，使用项目根目录的配置
         if config_path is None:
@@ -47,29 +47,24 @@ class PubMiner:
 
         self.config_manager = ConfigManager(str(config_path))
         self.llm_provider = llm_provider
-        
-        # 设置Rich日志系统
-        self.rich_logger = setup_rich_logger(
-            level=logging.INFO,
-            log_dir=Path('logs'),
-            console_width=120,
-            show_time=True,
-            show_path=False
-        )
+
+        # 设置 Rich 日志系统
+        self.rich_logger = setup_rich_logger(level=logging.INFO,
+                                             log_dir=Path('logs'),
+                                             console_width=120,
+                                             show_time=True,
+                                             show_path=False)
         self.logger = setup_logger(logging.INFO, Path('logs'))
 
         # 初始化组件
-        # 合并pubmed配置和citation_details配置传递给PubMedFetcher
+        # 合并 pubmed 配置和 citation_details 配置传递给 PubMedFetcher
         pubmed_config = self.config_manager.get_pubmed_config()
         output_config = self.config_manager.get_output_config()
-        pubmed_config.update(
-            {'citation_details': output_config.get('citation_details', {})})
+        pubmed_config.update({'citation_details': output_config.get('citation_details', {})})
 
         self.fetcher = PubMedFetcher(pubmed_config)
-        self.extractor = TextExtractor(
-            self.config_manager.get_extraction_config())
-        self.analyzer = LLMAnalyzer(
-            self.config_manager.get_llm_config(llm_provider))
+        self.extractor = TextExtractor(self.config_manager.get_extraction_config())
+        self.analyzer = LLMAnalyzer(self.config_manager.get_llm_config(llm_provider))
         self.processor = DataProcessor(output_config)
         self.query_manager = QueryManager(self.config_manager)
 
@@ -85,16 +80,16 @@ class PubMiner:
                          custom_template_file=None):
         """
         根据查询词分析文献
-        
+
         Args:
-            query: PubMed查询词
+            query: PubMed 查询词
             template_name: 提取模板名称
             max_results: 最大结果数
             include_fulltext: 是否包含全文
             max_workers: 并发数
             language: 输出语言 (Chinese, English, etc.)，如果为 None 则使用配置文件默认值
             custom_template_file: 自定义模板文件路径
-            
+
         Returns:
             分析结果列表
         """
@@ -116,44 +111,34 @@ class PubMiner:
 
         # 2. 提取全文（如果需要）
         if include_fulltext:
-            papers = self.extractor.extract_batch(papers,
-                                                  max_workers=max_workers)
+            papers = self.extractor.extract_batch(papers, max_workers=max_workers)
             papers = [p for p in papers if p.get('full_text')]
             self.logger.info(f"📄 成功提取 {len(papers)} 篇文献全文")
 
-        # 3. LLM分析
+        # 3. LLM 分析
         if custom_template_file:
             # 加载自定义模板文件
             import json
             with open(custom_template_file, 'r', encoding='utf-8') as f:
                 template = json.load(f)
         else:
-            template = self.config_manager.get_extraction_template(
-                template_name)
-        analyzed_papers = self.analyzer.analyze_batch(papers,
-                                                      template,
-                                                      max_workers=max_workers,
-                                                      language=language)
+            template = self.config_manager.get_extraction_template(template_name)
+        analyzed_papers = self.analyzer.analyze_batch(papers, template, max_workers=max_workers, language=language)
 
         self.logger.info(f"✅ 分析完成，共处理 {len(analyzed_papers)} 篇文献")
         return analyzed_papers
 
-    def analyze_by_pmids(self,
-                         pmids,
-                         template_name='standard',
-                         include_fulltext=True,
-                         max_workers=4,
-                         language=None):
+    def analyze_by_pmids(self, pmids, template_name='standard', include_fulltext=True, max_workers=4, language=None):
         """
-        根据PMID列表分析文献
-        
+        根据 PMID 列表分析文献
+
         Args:
-            pmids: PMID列表
+            pmids: PMID 列表
             template_name: 提取模板名称
             include_fulltext: 是否包含全文
             max_workers: 并发数
             language: 输出语言（None 时使用配置文件默认值）
-            
+
         Returns:
             分析结果列表
         """
@@ -173,17 +158,13 @@ class PubMiner:
 
         # 2. 提取全文（如果需要）
         if include_fulltext:
-            papers = self.extractor.extract_batch(papers,
-                                                  max_workers=max_workers)
+            papers = self.extractor.extract_batch(papers, max_workers=max_workers)
             papers = [p for p in papers if p.get('full_text')]
             self.logger.info(f"📄 成功提取 {len(papers)} 篇文献全文")
 
         # 3. LLM 分析
         template = self.config_manager.get_extraction_template(template_name)
-        analyzed_papers = self.analyzer.analyze_batch(papers,
-                                                      template,
-                                                      max_workers=max_workers,
-                                                      language=language)
+        analyzed_papers = self.analyzer.analyze_batch(papers, template, max_workers=max_workers, language=language)
 
         self.logger.info(f"✅ 分析完成，共处理 {len(analyzed_papers)} 篇文献")
         return analyzed_papers
@@ -191,7 +172,7 @@ class PubMiner:
     def save_results(self, results, output_name='analysis_results'):
         """
         保存分析结果
-        
+
         Args:
             results: 分析结果列表
             output_name: 输出文件名前缀
@@ -212,13 +193,10 @@ class PubMiner:
         templates = self.config_manager.get_extraction_templates()
         return list(templates.keys())
 
-    def create_custom_template(self,
-                               fields,
-                               template_name,
-                               template_description="Custom template"):
+    def create_custom_template(self, fields, template_name, template_description="Custom template"):
         """
         创建自定义模板
-        
+
         Args:
             fields: 字段定义列表
             template_name: 模板名称
@@ -226,8 +204,7 @@ class PubMiner:
         """
         from extractors.custom_extractor import CustomExtractor
         extractor = CustomExtractor(self.config_manager.get_config())
-        template = extractor.create_template_from_fields(
-            fields, template_description)
+        template = extractor.create_template_from_fields(fields, template_description)
 
         # 这里可以添加保存模板的逻辑
         return template
@@ -235,20 +212,19 @@ class PubMiner:
     def execute_batch_queries(self, config_file):
         """
         执行批量查询任务
-        
+
         Args:
             config_file: 查询配置文件路径
-            
+
         Returns:
             执行结果列表
         """
         return self.query_manager.execute_batch_queries(config_file, self)
 
-    def create_query_config_example(self,
-                                    output_file="query_config_example.json"):
+    def create_query_config_example(self, output_file="query_config_example.json"):
         """
         创建查询配置示例文件
-        
+
         Args:
             output_file: 输出文件路径
         """
@@ -257,20 +233,19 @@ class PubMiner:
 
 def parse_arguments():
     """解析命令行参数"""
-    parser = argparse.ArgumentParser(
-        description='PubMiner - 模块化文献分析工具',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
+    parser = argparse.ArgumentParser(description='PubMiner - 模块化文献分析工具',
+                                     formatter_class=argparse.RawDescriptionHelpFormatter,
+                                     epilog="""
 使用示例:
   # 按查询词分析文献
   python main.py --query "covid-19 AND vaccine" --output results.csv
-  
-  # 按PMID列表分析
+
+  # 按 PMID 列表分析
   python main.py --pmids 12345678,87654321 --output results.csv
-  
+
   # 使用自定义提取模板
   python main.py --query "aging biomarker" --template aging_biomarker --output aging_results.csv
-  
+
   # 指定大模型配置
   python main.py --query "cancer treatment" --llm-provider deepseek --output cancer_results.csv
         """)
@@ -281,25 +256,17 @@ def parse_arguments():
     input_group.add_argument('--pmids', type=str, help='PMID 列表，逗号分隔')
     input_group.add_argument('--pmid-file', type=str, help='包含 PMID 列表的文件路径')
     input_group.add_argument('--batch-config', type=str, help='批量查询配置文件路径')
-    input_group.add_argument('--create-query-example',
-                             action='store_true',
-                             help='创建查询配置示例文件')
+    input_group.add_argument('--create-query-example', action='store_true', help='创建查询配置示例文件')
 
     # 输出参数
     parser.add_argument('--output', type=str, help='输出 CSV 文件路径（单个查询时必需）')
-    parser.add_argument('--output-dir',
-                        type=str,
-                        default='output',
-                        help='输出目录（默认：output）')
+    parser.add_argument('--output-dir', type=str, default='output', help='输出目录（默认：output）')
 
     # 处理参数
-    parser.add_argument('--template',
-                        type=str,
-                        default='standard',
-                        help='提取模板（standard/custom 等，默认：standard）')
+    parser.add_argument('--template', type=str, default='standard', help='提取模板（standard/custom 等，默认：standard）')
     parser.add_argument('--custom-fields', type=str, help='自定义字段 JSON 文件路径')
 
-    # LLM参数
+    # LLM 参数
     parser.add_argument('--llm-provider',
                         type=str,
                         default='deepseek',
@@ -309,18 +276,9 @@ def parse_arguments():
     parser.add_argument('--api-key', type=str, help='API 密钥（覆盖配置文件）')
 
     # 优化参数
-    parser.add_argument('--max-workers',
-                        type=int,
-                        default=4,
-                        help='最大并发数（默认：4）')
-    parser.add_argument('--batch-size',
-                        type=int,
-                        default=10,
-                        help='批处理大小（默认：10）')
-    parser.add_argument('--text-limit',
-                        type=int,
-                        default=15000,
-                        help='单篇文献文本长度限制（默认：15000 字符）')
+    parser.add_argument('--max-workers', type=int, default=4, help='最大并发数（默认：4）')
+    parser.add_argument('--batch-size', type=int, default=10, help='批处理大小（默认：10）')
+    parser.add_argument('--text-limit', type=int, default=15000, help='单篇文献文本长度限制（默认：15000 字符）')
 
     # 其他参数
     parser.add_argument('--config',
@@ -329,9 +287,7 @@ def parse_arguments():
                         help='配置文件路径（默认：config/default_config.json）')
     parser.add_argument('--resume', action='store_true', help='断点续传模式')
     parser.add_argument('--verbose', '-v', action='store_true', help='详细输出')
-    parser.add_argument('--dry-run',
-                        action='store_true',
-                        help='试运行模式（不实际调用 API）')
+    parser.add_argument('--dry-run', action='store_true', help='试运行模式（不实际调用 API）')
 
     return parser.parse_args()
 
@@ -340,15 +296,13 @@ def main():
     """主函数"""
     args = parse_arguments()
 
-    # 设置Rich日志系统
+    # 设置 Rich 日志系统
     log_level = logging.DEBUG if args.verbose else logging.INFO
-    rich_logger = setup_rich_logger(
-        level=log_level,
-        log_dir=Path('logs'),
-        console_width=120,
-        show_time=True,
-        show_path=args.verbose
-    )
+    rich_logger = setup_rich_logger(level=log_level,
+                                    log_dir=Path('logs'),
+                                    console_width=120,
+                                    show_time=True,
+                                    show_path=args.verbose)
     logger = setup_logger(log_level, Path('logs'))
 
     # 打印欢迎信息
@@ -374,7 +328,7 @@ def main():
             rich_logger.print_section("批量查询模式")
             rich_logger.info(f"配置文件: [path]{args.batch_config}[/path]")
 
-            # 初始化PubMiner
+            # 初始化 PubMiner
             pubminer = PubMiner(args.config, args.llm_provider)
 
             # 执行批量查询
@@ -396,7 +350,7 @@ def main():
         # 覆盖配置参数
         if args.api_key:
             config_manager.set_api_key(args.llm_provider, args.api_key)
-            rich_logger.info("API密钥已更新")
+            rich_logger.info("API 密钥已更新")
         if args.llm_model:
             config_manager.set_model(args.llm_provider, args.llm_model)
             rich_logger.info(f"模型已设置为: [highlight]{args.llm_model}[/highlight]")
@@ -404,7 +358,7 @@ def main():
         # 显示配置摘要
         config_summary = {
             "配置文件": args.config,
-            "LLM提供商": args.llm_provider,
+            "LLM 提供商": args.llm_provider,
             "最大工作线程": args.max_workers,
             "批处理大小": args.batch_size,
             "文本限制": f"{args.text_limit} 字符" if args.text_limit else "无限制"
@@ -421,12 +375,12 @@ def main():
                 papers = fetcher.fetch_by_query(args.query, resume=args.resume)
             elif args.pmids:
                 pmid_list = [pmid.strip() for pmid in args.pmids.split(',')]
-                rich_logger.info(f"PMID列表: [number]{len(pmid_list)}[/number] 个")
+                rich_logger.info(f"PMID 列表: [number]{len(pmid_list)}[/number] 个")
                 papers = fetcher.fetch_by_pmid_list(pmid_list, resume=args.resume)
             elif args.pmid_file:
                 with open(args.pmid_file, 'r', encoding='utf-8') as f:
                     pmid_list = [line.strip() for line in f if line.strip()]
-                rich_logger.info(f"PMID文件: [path]{args.pmid_file}[/path] ([number]{len(pmid_list)}[/number] 个)")
+                rich_logger.info(f"PMID 文件: [path]{args.pmid_file}[/path] ([number]{len(pmid_list)}[/number] 个)")
                 papers = fetcher.fetch_by_pmid_list(pmid_list, resume=args.resume)
 
         rich_logger.success(f"获取到 [number]{len(papers)}[/number] 篇文献的基本信息")
@@ -438,10 +392,9 @@ def main():
         # 3. 提取全文内容
         rich_logger.print_section("全文提取")
         extractor = TextExtractor(config_manager.get_extraction_config())
-        
+
         with rich_logger.progress("提取全文内容...") as (progress, task):
-            papers_with_text = extractor.extract_batch(
-                papers, max_workers=args.max_workers, text_limit=args.text_limit)
+            papers_with_text = extractor.extract_batch(papers, max_workers=args.max_workers, text_limit=args.text_limit)
 
         valid_papers = [p for p in papers_with_text if p.get('full_text')]
         rich_logger.success(f"成功提取 [number]{len(valid_papers)}[/number] 篇文献的全文内容")
@@ -453,26 +406,24 @@ def main():
         # 4. 加载提取模板
         rich_logger.print_section("模板配置")
         rich_logger.info(f"提取模板: [highlight]{args.template}[/highlight]")
-        
+
         if args.custom_fields:
             template = config_manager.load_custom_template(args.custom_fields)
             rich_logger.info(f"自定义字段: [number]{len(args.custom_fields)}[/number] 个")
         else:
             template = config_manager.get_extraction_template(args.template)
 
-        # 5. LLM分析
-        rich_logger.print_section("AI分析")
+        # 5. LLM 分析
+        rich_logger.print_section("AI 分析")
         if not args.dry_run:
-            rich_logger.info(f"LLM提供商: [highlight]{args.llm_provider}[/highlight]")
-            analyzer = LLMAnalyzer(
-                config_manager.get_llm_config(args.llm_provider))
+            rich_logger.info(f"LLM 提供商: [highlight]{args.llm_provider}[/highlight]")
+            analyzer = LLMAnalyzer(config_manager.get_llm_config(args.llm_provider))
 
-            with rich_logger.progress("执行AI分析...") as (progress, task):
-                analyzed_papers = analyzer.analyze_batch(
-                    valid_papers,
-                    template,
-                    batch_size=args.batch_size,
-                    max_workers=args.max_workers)
+            with rich_logger.progress("执行 AI 分析...") as (progress, task):
+                analyzed_papers = analyzer.analyze_batch(valid_papers,
+                                                         template,
+                                                         batch_size=args.batch_size,
+                                                         max_workers=args.max_workers)
         else:
             rich_logger.warning("试运行模式，跳过 LLM 分析")
             analyzed_papers = valid_papers
@@ -482,7 +433,7 @@ def main():
         processor = DataProcessor(config_manager.get_output_config())
 
         output_path = Path(args.output_dir) / args.output
-        with rich_logger.status("生成CSV文件..."):
+        with rich_logger.status("生成 CSV 文件..."):
             processor.generate_csv(analyzed_papers, template, output_path)
 
         rich_logger.success(f"分析完成！结果已保存到: [path]{output_path}[/path]")
@@ -490,10 +441,10 @@ def main():
         # 7. 生成统计报告
         stats = processor.generate_statistics(analyzed_papers)
         logger.info("📈 处理统计:")
-        logger.info(f"  - 总文献数: {stats['total_papers']}")
-        logger.info(f"  - 成功分析: {stats['analyzed_papers']}")
-        logger.info(f"  - 提取字段: {stats['extracted_fields']}")
-        logger.info(f"  - 处理时间: {stats['processing_time']:.2f}秒")
+        logger.info(f"- 总文献数: {stats['total_papers']}")
+        logger.info(f"- 成功分析: {stats['analyzed_papers']}")
+        logger.info(f"- 提取字段: {stats['extracted_fields']}")
+        logger.info(f"- 处理时间: {stats['processing_time']:.2f} 秒")
 
     except KeyboardInterrupt:
         logger.info("⛔ 用户中断操作")
