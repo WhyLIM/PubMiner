@@ -53,3 +53,5 @@ tests/
 .claude/
 cache/
 *CLAUDE.md
+
+.spec-workflow/

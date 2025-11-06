@@ -19,12 +19,19 @@ from pathlib import Path
 # 添加项目根目录到 Python 路径
 sys.path.append(str(Path(__file__).parent))
 
+# 加载环境变量
+try:
+    from dotenv import load_dotenv
+    env_path = Path(__file__).parent / '.env'
+    if env_path.exists():
+        load_dotenv(env_path, override=True)
+        print(f"已加载环境变量文件: {env_path}")
+    else:
+        print(f"警告: 环境变量文件不存在: {env_path}")
+except ImportError:
+    print("警告: python-dotenv 未安装，环境变量加载可能不完整")
+
 from core.config_manager import ConfigManager
-from core.pubmed_fetcher import PubMedFetcher
-from core.text_extractor import TextExtractor
-from core.llm_analyzer import LLMAnalyzer
-from core.data_processor import DataProcessor
-from core.query_manager import QueryManager
 from utils.logger import setup_logger
 from utils.rich_logger import setup_rich_logger, get_rich_logger, print_welcome, print_config_summary, print_results_summary
 
@@ -32,20 +39,20 @@ from utils.rich_logger import setup_rich_logger, get_rich_logger, print_welcome,
 class PubMiner:
     """PubMiner 主类 - 提供编程接口"""
 
-    def __init__(self, config_path=None, llm_provider='deepseek'):
+    def __init__(self, config_dir=None, llm_provider='deepseek'):
         """
         初始化 PubMiner
 
         Args:
-            config_path: 配置文件路径
+            config_dir: 配置文件目录
             llm_provider: LLM 提供商
         """
-        # 如果没有指定配置路径，使用项目根目录的配置
-        if config_path is None:
+        # 如果没有指定配置目录，使用项目根目录的配置
+        if config_dir is None:
             project_root = Path(__file__).parent
-            config_path = project_root / 'config' / 'default_config.json'
+            config_dir = project_root / 'config'
 
-        self.config_manager = ConfigManager(str(config_path))
+        self.config_manager = ConfigManager(str(config_dir))
         self.llm_provider = llm_provider
 
         # 设置 Rich 日志系统
@@ -57,16 +64,43 @@ class PubMiner:
         self.logger = setup_logger(logging.INFO, Path('logs'))
 
         # 初始化组件
-        # 合并 pubmed 配置和 citation_details 配置传递给 PubMedFetcher
+        # 获取各模块配置
         pubmed_config = self.config_manager.get_pubmed_config()
+        extraction_config = self.config_manager.get_extraction_config()
+        llm_config = self.config_manager.get_llm_config(llm_provider)
         output_config = self.config_manager.get_output_config()
-        pubmed_config.update({'citation_details': output_config.get('citation_details', {})})
+        pdf_config = self.config_manager.get_pdf_download_config()
 
-        self.fetcher = PubMedFetcher(pubmed_config)
-        self.extractor = TextExtractor(self.config_manager.get_extraction_config())
-        self.analyzer = LLMAnalyzer(self.config_manager.get_llm_config(llm_provider))
-        self.processor = DataProcessor(output_config)
-        self.query_manager = QueryManager(self.config_manager)
+        # 验证 PubMed 配置
+        email = pubmed_config.get('email', '')
+        api_key = pubmed_config.get('api_key', '')
+        self.logger.info(f"初始化 LLM 分析器: {llm_provider} - {llm_config.get('model', 'unknown')}")
+
+        if email.startswith('${') or api_key.startswith('${'):
+            self.logger.error("环境变量未正确加载到配置中")
+            raise ValueError("PubMed API 配置错误：环境变量未正确替换")
+
+        # 延迟导入组件
+        try:
+            from core.pubmed_fetcher import PubMedFetcher
+            from core.text_extractor import TextExtractor
+            from core.llm_analyzer import LLMAnalyzer
+            from core.data_processor import DataProcessor
+            from core.query_manager import QueryManager
+
+            self.fetcher = PubMedFetcher(pubmed_config)
+            self.extractor = TextExtractor(extraction_config)
+            self.analyzer = LLMAnalyzer(llm_config)
+            self.processor = DataProcessor(output_config)
+            self.query_manager = QueryManager(self.config_manager)
+        except ImportError as e:
+            if 'pandas' in str(e):
+                self.logger.error("缺少必需的依赖包 pandas，请运行: pip install pandas")
+            elif 'Bio' in str(e):
+                self.logger.error("缺少必需的依赖包 biopython，请运行: pip install biopython")
+            else:
+                self.logger.error(f"缺少必需的依赖包: {e}")
+            raise
 
         self.logger.info("✅ PubMiner 初始化完成")
 
@@ -203,7 +237,7 @@ class PubMiner:
             template_description: 模板描述
         """
         from extractors.custom_extractor import CustomExtractor
-        extractor = CustomExtractor(self.config_manager.get_config())
+        extractor = CustomExtractor(self.config_manager.get_config_status())
         template = extractor.create_template_from_fields(fields, template_description)
 
         # 这里可以添加保存模板的逻辑
@@ -278,13 +312,12 @@ def parse_arguments():
     # 优化参数
     parser.add_argument('--max-workers', type=int, default=4, help='最大并发数（默认：4）')
     parser.add_argument('--batch-size', type=int, default=10, help='批处理大小（默认：10）')
-    parser.add_argument('--text-limit', type=int, default=15000, help='单篇文献文本长度限制（默认：15000 字符）')
 
     # 其他参数
     parser.add_argument('--config',
                         type=str,
-                        default='config/default_config.json',
-                        help='配置文件路径（默认：config/default_config.json）')
+                        default='config',
+                        help='配置文件目录（默认：config）')
     parser.add_argument('--resume', action='store_true', help='断点续传模式')
     parser.add_argument('--verbose', '-v', action='store_true', help='详细输出')
     parser.add_argument('--dry-run', action='store_true', help='试运行模式（不实际调用 API）')
@@ -347,21 +380,23 @@ def main():
         with rich_logger.status("加载配置文件..."):
             config_manager = ConfigManager(args.config)
 
-        # 覆盖配置参数
-        if args.api_key:
-            config_manager.set_api_key(args.llm_provider, args.api_key)
-            rich_logger.info("API 密钥已更新")
-        if args.llm_model:
-            config_manager.set_model(args.llm_provider, args.llm_model)
-            rich_logger.info(f"模型已设置为: [highlight]{args.llm_model}[/highlight]")
+        # 显示配置状态
+        config_status = config_manager.get_config_status()
+        rich_logger.info(f"配置目录: [path]{config_status['config_dir']}[/path]")
+        rich_logger.info(f"模板数量: [number]{config_status['templates_count']}[/number]")
+
+        if config_status['validation_errors']:
+            rich_logger.warning(f"配置验证错误: [number]{len(config_status['validation_errors'])}[/number] 个")
+            for error in config_status['validation_errors']:
+                rich_logger.warning(f"  - {error}")
 
         # 显示配置摘要
         config_summary = {
-            "配置文件": args.config,
+            "配置目录": args.config,
             "LLM 提供商": args.llm_provider,
             "最大工作线程": args.max_workers,
             "批处理大小": args.batch_size,
-            "文本限制": f"{args.text_limit} 字符" if args.text_limit else "无限制"
+            "文本限制": "无限制（全文提取）"
         }
         print_config_summary(config_summary)
 
@@ -394,7 +429,7 @@ def main():
         extractor = TextExtractor(config_manager.get_extraction_config())
 
         with rich_logger.progress("提取全文内容...") as (progress, task):
-            papers_with_text = extractor.extract_batch(papers, max_workers=args.max_workers, text_limit=args.text_limit)
+            papers_with_text = extractor.extract_batch(papers, max_workers=args.max_workers)
 
         valid_papers = [p for p in papers_with_text if p.get('full_text')]
         rich_logger.success(f"成功提取 [number]{len(valid_papers)}[/number] 篇文献的全文内容")

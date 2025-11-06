@@ -35,7 +35,7 @@ class TextExtractor(LoggerMixin):
             config: 提取配置
         """
         self.config = config
-        self.text_limit = config.get('text_limit', -1)
+        # 移除文本长度限制，支持全文提取
         self.section_filters = config.get('section_filters', [])
         self.exclude_sections = config.get('exclude_sections', [])
         self.key_section_ratio = config.get('key_section_ratio', {})
@@ -344,7 +344,7 @@ class TextExtractor(LoggerMixin):
             issue = self._safe_get_metadata_field(metadata, 'issue', 'N/A')
 
             # 格式化元数据文本
-            meta_text = f"""标题: {title_text}
+            meta_text = f""" 标题: {title_text}
                             DOI: {doi}
                             PMID: {pmid}
                             PMCID: PMC{pmcid}
@@ -457,10 +457,7 @@ class TextExtractor(LoggerMixin):
                     section_texts[section_type] = section_text
                     total_chars += len(section_text)
 
-                    # 检查文本长度限制
-                    if self.text_limit > 0 and total_chars > self.text_limit:
-                        self.logger.debug(f"达到文本长度限制 ({self.text_limit})，停止提取")
-                        break
+                    # 不再检查文本长度限制，支持全文提取
 
             # 组装全文内容
             full_text = self._assemble_full_text(section_texts)
@@ -530,63 +527,227 @@ class TextExtractor(LoggerMixin):
 
     def _assemble_full_text(self, section_texts: Dict[str, str]) -> str:
         """
-        组装全文内容
+        组装全文内容为标准 Markdown 格式
 
         Args:
             section_texts: 章节文本字典
 
         Returns:
-            组装后的全文
+            组装后的 Markdown 格式全文
         """
         full_text_parts = []
 
-        for section_type, text in section_texts.items():
-            # 格式化章节标题
-            section_title = self._format_section_title(section_type)
-            full_text_parts.append(f"\n\n{section_title}\n{text}")
+        # 定义章节的优先级顺序
+        section_priority = [
+            "ABSTRACT", "TITLE", "INTRODUCTION", "METHODS", "RESULTS", "DISCUSSION", "CONCLUSION", "ACKNOWLEDGMENTS",
+            "REFERENCES", "FIGURES", "TABLES", "SUPPLEMENTARY"
+        ]
 
-        return "".join(full_text_parts)
+        # 按优先级排序章节，未在优先级列表中的章节按字母顺序排在最后
+        sorted_sections = []
+
+        # 先添加有优先级的章节
+        for section_type in section_priority:
+            if section_type in section_texts:
+                sorted_sections.append(section_type)
+
+        # 再添加其他章节
+        other_sections = [s for s in section_texts.keys() if s not in section_priority]
+        other_sections.sort()
+        sorted_sections.extend(other_sections)
+
+        for section_type in sorted_sections:
+            text = section_texts[section_type].strip()
+            if not text:
+                continue
+
+            # 格式化章节标题为 Markdown 格式
+            section_title = self._format_section_title(section_type)
+            full_text_parts.append(f"\n{section_title}\n\n{text}")
+
+        return "".join(full_text_parts).strip()
 
     def _format_section_title(self, section_type: str) -> str:
         """
-        格式化章节标题
+        格式化章节标题为标准 Markdown 格式
 
         Args:
             section_type: 章节类型
 
         Returns:
-            格式化的章节标题
+            格式化的 Markdown 章节标题
         """
-        # 章节类型映射到中文显示名称
-        section_names = {
-            "ABSTRACT": "ABSTRACT",
-            "TITLE": "TITLE",
-            "INTRO": "INTRODUCTION",
-            "INTRODUCTION": "INTRODUCTION",
-            "METHODS": "METHODS",
-            "METHOD": "METHODS",
-            "RESULTS": "RESULTS",
-            "DISCUSS": "DISCUSSION",
-            "DISCUSSION": "DISCUSSION",
-            "CONCL": "CONCLUSION",
-            "CONCLUSION": "CONCLUSION",
-            "ACK": "ACKNOWLEDGMENTS",
-            "ACK_FUND": "ACKNOWLEDGMENTS",
-            "ACKNOWLEDGMENTS": "ACKNOWLEDGMENTS",
-            "REF": "REFERENCES",
-            "REFERENCES": "REFERENCES",
-            "FIG": "FIGURES",
-            "FIGURES": "FIGURES",
-            "TAB": "TABLE",
-            "TABLE": "TABLE",
-            "SUPPL": "SUPPLEMENTARY",
-            "SUPPLEMENTARY": "SUPPLEMENTARY"
+        # 章节类型映射到标准名称和 Markdown 级别
+        section_config = {
+            "TITLE": {
+                "name": "Title",
+                "level": 1
+            },
+            "ABSTRACT": {
+                "name": "Abstract",
+                "level": 2
+            },
+            "INTRO": {
+                "name": "Introduction",
+                "level": 2
+            },
+            "INTRODUCTION": {
+                "name": "Introduction",
+                "level": 2
+            },
+            "METHODS": {
+                "name": "Methods",
+                "level": 2
+            },
+            "METHOD": {
+                "name": "Methods",
+                "level": 2
+            },
+            "MATERIALS AND METHODS": {
+                "name": "Materials and Methods",
+                "level": 2
+            },
+            "RESULTS": {
+                "name": "Results",
+                "level": 2
+            },
+            "DISCUSS": {
+                "name": "Discussion",
+                "level": 2
+            },
+            "DISCUSSION": {
+                "name": "Discussion",
+                "level": 2
+            },
+            "CONCL": {
+                "name": "Conclusion",
+                "level": 2
+            },
+            "CONCLUSION": {
+                "name": "Conclusion",
+                "level": 2
+            },
+            "CONCLUSIONS": {
+                "name": "Conclusions",
+                "level": 2
+            },
+            "ACK": {
+                "name": "Acknowledgments",
+                "level": 2
+            },
+            "ACK_FUND": {
+                "name": "Acknowledgments",
+                "level": 2
+            },
+            "ACKNOWLEDGMENTS": {
+                "name": "Acknowledgments",
+                "level": 2
+            },
+            "REF": {
+                "name": "References",
+                "level": 2
+            },
+            "REFERENCES": {
+                "name": "References",
+                "level": 2
+            },
+            "FIG": {
+                "name": "Figures",
+                "level": 2
+            },
+            "FIGURES": {
+                "name": "Figures",
+                "level": 2
+            },
+            "TABLE": {
+                "name": "Tables",
+                "level": 2
+            },
+            "TAB": {
+                "name": "Tables",
+                "level": 2
+            },
+            "TABLES": {
+                "name": "Tables",
+                "level": 2
+            },
+            "SUPPL": {
+                "name": "Supplementary Materials",
+                "level": 2
+            },
+            "SUPPLEMENTARY": {
+                "name": "Supplementary Materials",
+                "level": 2
+            }
         }
 
-        # 获取章节显示名称，默认使用原文
-        display_name = section_names.get(section_type.upper(), section_type)
+        # 获取章节配置，默认使用原文作为 2 级标题
+        config = section_config.get(section_type.upper(), {"name": section_type, "level": 2})
 
-        return f"===== {display_name} ====="
+        # 生成 Markdown 标题
+        markdown_level = "#" * config["level"]
+        return f"{markdown_level} {config['name']}"
+
+    def generate_markdown_document(self, paper: Dict[str, Any], full_text: str) -> str:
+        """
+        生成完整的 Markdown 文档
+
+        Args:
+            paper: 文献信息
+            full_text: 提取的全文内容
+
+        Returns:
+            完整的 Markdown 文档字符串
+        """
+        pmid = paper.get('PMID', '')
+        title = paper.get('Title', 'Unknown Title')
+        authors = paper.get('Authors', 'Unknown Authors')
+        journal = paper.get('Journal_Title', 'Unknown Journal')
+        year = paper.get('Year_of_Publication', '')
+        doi = paper.get('DOI', '')
+        publication_date = paper.get('Publication_Date', '')
+
+        # 构建 Markdown 文档头部
+        markdown_parts = []
+
+        # 主标题
+        markdown_parts.append(f"# {title}")
+
+        # 文献元信息表格
+        if pmid or authors or journal or year or doi or publication_date:
+            markdown_parts.append("\n## Publication Information\n")
+            markdown_parts.append("| Field | Value |")
+            markdown_parts.append("|-------|-------|")
+
+            if pmid:
+                markdown_parts.append(f"| PMID | {pmid} |")
+            if authors:
+                # 限制作者显示长度
+                authors_display = authors if len(authors) <= 200 else authors[:200] + "..."
+                markdown_parts.append(f"| Authors | {authors_display} |")
+            if journal:
+                markdown_parts.append(f"| Journal | {journal} |")
+            if year:
+                markdown_parts.append(f"| Year | {year} |")
+            if doi:
+                markdown_parts.append(f"| DOI | [{doi}](https://doi.org/{doi}) |")
+            if publication_date:
+                markdown_parts.append(f"| Publication Date | {publication_date} |")
+
+        # 添加全文内容
+        if full_text.strip():
+            markdown_parts.append(f"\n## Full Text\n\n{full_text}")
+        else:
+            markdown_parts.append("\n## Full Text\n\n*No full text available*")
+
+        # 文档尾部
+        markdown_parts.append(f"\n---\n")
+        markdown_parts.append(f"*Document generated by PubMiner*")
+        markdown_parts.append(f"*PMID: {pmid}*")
+        if doi:
+            markdown_parts.append(f"*DOI: [{doi}](https://doi.org/{doi})*")
+
+        return "\n".join(markdown_parts)
 
     def extract_from_pdf(self, pdf_path: Union[str, Path], min_chars: int = 1000) -> str:
         """
@@ -731,77 +892,28 @@ class TextExtractor(LoggerMixin):
 
     def filter_and_optimize_text(self, text: str, max_length: Optional[int] = None) -> str:
         """
-        智能筛选和优化文本内容
+        智能筛选和优化文本内容（仅进行章节过滤，不进行长度限制）
 
         Args:
             text: 原始文本
-            max_length: 最大长度限制
+            max_length: 兼容性参数，已弃用
 
         Returns:
-            优化后的文本
+            优化后的文本（完整全文）
         """
         if not text or not text.strip():
             return ""
 
-        max_length = max_length or self.text_limit
+        # 不再进行长度限制，返回完整文本
+        self.logger.debug(f"返回完整文本，长度：{len(text)} 字符")
+        return text
 
-        if len(text) <= max_length:
-            return text
-
-        self.logger.debug(f"文本过长（{len(text)} 字符），开始智能优化 ...")
-
-        # 识别关键章节
-        key_sections = self._identify_key_sections(text)
-
-        if not key_sections:
-            # 如果没有识别到章节，使用头尾截取
-            head_length = min(max_length // 3, 5000)
-            tail_length = min(max_length - head_length, 3000)
-
-            optimized_text = (text[:head_length] + "\n\n[... 中间部分已省略 ...]\n\n" + text[-tail_length:])
-
-            self.logger.debug(f"使用头尾截取，保留 {len(optimized_text)} 字符")
-            return optimized_text
-
-        # 按优先级选择章节
-        section_priority = ['abstract', 'introduction', 'methods', 'results', 'discussion', 'conclusion']
-        selected_sections = []
-        used_length = 0
-
-        for section_name in section_priority:
-            if section_name in key_sections:
-                section_content = key_sections[section_name]
-                # 计算添加分隔符后的总长度（包括换行符）
-                separator_length = len("\\n\\n=====" + section_name.upper() + "=====\\n")
-                total_section_length = len(section_content) + separator_length
-
-                if used_length + total_section_length <= max_length:
-                    selected_sections.append((section_name, section_content))
-                    used_length += total_section_length
-                else:
-                    # 部分截取
-                    remaining_length = max_length - used_length - separator_length
-                    if remaining_length > 100:  # 至少保留 100 字符
-                        truncated_content = section_content[:remaining_length - 3] + "..."
-                        selected_sections.append((section_name, truncated_content))
-                        used_length += len(truncated_content) + separator_length
-                    break
-
-        # 组合优化后的文本
-        optimized_text = ""
-        for section_name, section_content in selected_sections:
-            optimized_text += f"\n\n===== {section_name.upper()} =====\n{section_content}"
-
-        self.logger.debug(f"智能优化完成，保留 {len(optimized_text)} 字符")
-        return optimized_text.strip()
-
-    def extract_text_from_paper(self, paper: Dict[str, Any], text_limit: Optional[int] = None) -> Dict[str, Any]:
+    def extract_text_from_paper(self, paper: Dict[str, Any]) -> Dict[str, Any]:
         """
         从单篇文献中提取文本
 
         Args:
             paper: 文献记录
-            text_limit: 文本长度限制
 
         Returns:
             包含全文的文献记录
@@ -842,9 +954,9 @@ class TextExtractor(LoggerMixin):
                 text_source = "abstract"
                 self.logger.debug(f"✅ 使用摘要作为文本 : {len(full_text)} 字符")
 
-        # 优化文本长度
+        # 不再进行文本长度优化，保持全文
         if full_text:
-            full_text = self.filter_and_optimize_text(full_text, text_limit or self.text_limit)
+            full_text = self.filter_and_optimize_text(full_text)
 
         # 更新文献记录
         paper_with_text = paper.copy()
@@ -856,17 +968,13 @@ class TextExtractor(LoggerMixin):
 
         return paper_with_text
 
-    def extract_batch(self,
-                      papers: List[Dict[str, Any]],
-                      max_workers: int = 4,
-                      text_limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    def extract_batch(self, papers: List[Dict[str, Any]], max_workers: int = 4) -> List[Dict[str, Any]]:
         """
         批量提取文献文本
 
         Args:
             papers: 文献列表
             max_workers: 最大并发数
-            text_limit: 文本长度限制
 
         Returns:
             包含全文的文献列表
@@ -877,7 +985,7 @@ class TextExtractor(LoggerMixin):
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # 提交任务
-            future_to_paper = {executor.submit(self.extract_text_from_paper, paper, text_limit): paper for paper in papers}
+            future_to_paper = {executor.submit(self.extract_text_from_paper, paper): paper for paper in papers}
 
             # 收集结果
             for future in as_completed(future_to_paper):

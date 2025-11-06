@@ -1,0 +1,46 @@
+{
+    "pdf_downloader": {
+        "download_dir": "./results/pdfs",
+        "max_retries": 3,
+        "retry_delay": 5,
+        "timeout": 30,
+        "max_workers": 4,
+        "verify_pdf": true,
+        "max_file_size": 104857600,
+        "scihub_mirrors": [
+            "https://sci-hub.se",
+            "https://sci-hub.st",
+            "https://sci-hub.ru",
+            "https://www.sci-hub.ren",
+            "https://www.sci-hub.ee"
+        ],
+        "user_agents": [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:89.0) Gecko/20100101 Firefox/89.0",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        ],
+        "doi_apis": {
+            "crossref": {
+                "url": "https://api.crossref.org/works",
+                "enabled": true,
+                "timeout": 15
+            }
+        }
+    },
+    "download_strategies": {
+        "priority_order": [
+            "pmc_oa",
+            "publisher_oa",
+            "unpaywall",
+            "scihub"
+        ],
+        "fallback_enabled": true,
+        "timeout_per_source": 30
+    },
+    "file_management": {
+        "organize_by_year": true,
+        "organize_by_journal": false,
+        "filename_pattern": "{pmid}_{journal}_{year}.pdf",
+        "deduplicate": true
+    }
+}

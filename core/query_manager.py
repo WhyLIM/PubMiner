@@ -181,7 +181,7 @@ class QueryManager:
             query = task['query']
             
             # 任务参数，使用默认值填充
-            max_results = task.get('max_results', default_settings.get('max_results', 100))
+            max_results = task.get('max_results', default_settings.get('max_results', -1))
             
             # 处理无限制获取的情况
             if max_results is None or max_results == -1:

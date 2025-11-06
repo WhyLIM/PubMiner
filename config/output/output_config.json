@@ -1,0 +1,43 @@
+{
+    "csv_settings": {
+        "encoding": "utf-8-sig",
+        "date_format": "%Y-%m-%d",
+        "na_values": [
+            "NA",
+            "N/A",
+            "Not mentioned",
+            "Not specified",
+            ""
+        ],
+        "max_cell_length": 1000,
+        "enable_backup": true,
+        "decimal_places": 2
+    },
+    "output_formats": {
+        "primary": "csv",
+        "supported_formats": [
+            "csv",
+            "json",
+            "excel",
+            "parquet"
+        ]
+    },
+    "file_naming": {
+        "default_pattern": "{template_name}_{timestamp}_{query_id}",
+        "include_timestamp": true,
+        "include_query_id": true,
+        "timestamp_format": "%Y%m%d_%H%M%S"
+    },
+    "quality_control": {
+        "validate_required_fields": true,
+        "check_data_completeness": true,
+        "generate_quality_report": true,
+        "min_completeness_threshold": 0.8
+    },
+    "export_settings": {
+        "auto_compress_large_files": true,
+        "compression_threshold": 104857600,
+        "include_metadata": true,
+        "generate_summary": true
+    }
+}

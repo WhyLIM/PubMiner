@@ -1,0 +1,44 @@
+{
+    "language": {
+        "default_output_language": "English",
+        "supported_languages": [
+            "Chinese",
+            "English",
+            "Spanish",
+            "French",
+            "German",
+            "Japanese",
+            "Korean"
+        ],
+        "language_mapping": {
+            "zh": "Chinese",
+            "en": "English",
+            "es": "Spanish",
+            "fr": "French",
+            "de": "German",
+            "ja": "Japanese",
+            "ko": "Korean",
+            "中文": "Chinese",
+            "英文": "English"
+        }
+    },
+    "optimization": {
+        "enable_section_filtering": true,
+        "enable_smart_compression": true,
+        "enable_hierarchical_extraction": false,
+        "compression_ratio": 0.7,
+        "min_section_length": 100,
+        "max_section_length": 3000
+    },
+    "caching": {
+        "enable_cache": true,
+        "cache_ttl": 86400,
+        "max_cache_size": 1000,
+        "cache_dir": "./cache"
+    },
+    "parallel_processing": {
+        "max_workers": 4,
+        "chunk_size": 10,
+        "enable_progress_bar": true
+    }
+}

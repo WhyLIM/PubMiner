@@ -1,0 +1,35 @@
+{
+	"query_tasks": [
+		{
+			"name": "结直肠癌相关的生物标志物研究",
+			"query": "(biomarker[ti] OR marker[ti] OR diagnosis[ti] OR diagnostic[ti] OR prognosis[ti] OR prognostic[ti] OR indicat*[ti] OR predict*[ti] OR forecast*[ti] OR anticipate*[ti] OR target*[ti]) AND (colorectal[ti] OR colon[ti] OR rectal[ti] OR rectum[ti]) AND (tumor[ti] OR neoplasm[ti] OR cancer[ti] OR carcinoma[ti] OR malignancy[ti]) AND (\"2023/08/01\"[Date - Publication] : \"2023/08/07\"[Date - Publication])",
+			"max_results": null,
+			"include_fulltext": false,
+			"output_file": "test1.csv",
+			"description": "结直肠癌相关的生物标志物研究，时间范围 2023 年 8 月 1 日 - 7 日"
+		},
+		{
+			"name": "放射性肠道毒性研究",
+			"query": "(toxicities[ti] OR injury[ti] OR damage[ti] OR toxicity[ti] OR enteritis[ti]) AND (radiation[ti] OR radio*[ti]) AND (colorectal[ti] OR colon[ti] OR rectal[ti] OR rectum[ti] OR bowel[ti] OR intestine[ti] OR gastrointestinal[ti] OR intestinal[ti]) AND (\"2023/08/01\"[Date - Publication] : \"2023/08/31\"[Date - Publication])",
+			"max_results": -1,
+			"include_fulltext": true,
+			"output_file": "test2.csv",
+			"description": "放射性肠道毒性研究，时间范围 2023 年 8 月 1 日 - 31 日",
+			"custom_fields": [
+				"文章中研究的生物标志物是什么",
+				"属于单个生物标志物还是组合生物标志物",
+				"属于什么分类（Protein/DNA/RNA/Other）",
+				"研究样本人群的种族背景",
+				"研究样本的男女比例",
+				"关于该生物标志物的具体描述和功能"
+			]
+		}
+	],
+	"default_settings": {
+		"max_results": -1,
+		"include_fulltext": false,
+		"output_dir": "results/batch_queries",
+		"task_wait_time": 5,
+		"retry_failed_tasks": true
+	}
+}

@@ -1,0 +1,52 @@
+{
+    "llm_providers": {
+        "deepseek": {
+            "api_base": "${DEEPSEEK_BASE_URL}",
+            "api_key": "${DEEPSEEK_API_KEY}",
+            "model": "deepseek-chat",
+            "temperature": 0.1,
+            "max_tokens": 4000,
+            "timeout": 60,
+            "enabled": true
+        },
+        "openai": {
+            "api_base": "${OPENAI_BASE_URL}",
+            "api_key": "${OPENAI_API_KEY}",
+            "model": "gpt-3.5-turbo",
+            "temperature": 0.1,
+            "max_tokens": 4000,
+            "timeout": 60,
+            "enabled": true
+        },
+        "qwen": {
+            "api_base": "${QWEN_BASE_URL}",
+            "api_key": "${QWEN_API_KEY}",
+            "model": "qwen-turbo",
+            "temperature": 0.1,
+            "max_tokens": 4000,
+            "timeout": 60,
+            "enabled": true
+        },
+        "volcengine": {
+            "api_base": "${VOLCENGINE_BASE_URL}",
+            "api_key": "${VOLCENGINE_API_KEY}",
+            "model": "ep-20241013000000-xxxxx",
+            "temperature": 0.1,
+            "max_tokens": 4000,
+            "timeout": 60,
+            "enabled": false
+        }
+    },
+    "default_provider": "deepseek",
+    "fallback_providers": ["openai", "qwen"],
+    "cost_management": {
+        "enable_cost_tracking": true,
+        "daily_budget": 10.0,
+        "cost_alert_threshold": 0.8
+    },
+    "prompt_settings": {
+        "language": "Chinese",
+        "output_format": "json",
+        "include_confidence": false
+    }
+}

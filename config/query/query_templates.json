@@ -1,0 +1,51 @@
+{
+    "query_tasks": [
+        {
+            "id": "test",
+            "name": "一篇测试",
+            "query": "38868513",
+            "extraction_template": "standard",
+            "output_file": "test38868513.csv",
+            "description": "一篇测试",
+            "settings": {
+                "max_results": -1,
+                "include_fulltext": true
+            }
+        },
+        {
+            "id": "colorectal_cancer_biomarkers",
+            "name": "结直肠癌相关的生物标志物研究",
+            "query": "(biomarker[ti] OR marker[ti] OR diagnosis[ti] OR diagnostic[ti] OR prognosis[ti] OR prognostic[ti] OR indicat*[ti] OR predict*[ti] OR forecast*[ti] OR anticipate*[ti] OR target*[ti]) AND (colorectal[ti] OR colon[ti] OR rectal[ti] OR rectum[ti]) AND (tumor[ti] OR neoplasm[ti] OR cancer[ti] OR carcinoma[ti] OR malignancy[ti]) AND (2023/08/03[Date - Publication] : 2023/08/07[Date - Publication])",
+            "extraction_template": "standard",
+            "output_file": "colorectal_cancer_biomarkers.csv",
+            "description": "结直肠癌相关的生物标志物研究，时间范围 2023 年 8 月 3 日 - 7 日",
+            "settings": {
+                "max_results": -1,
+                "include_fulltext": false
+            }
+        },
+        {
+            "id": "radiation_toxicity",
+            "name": "放射性肠道毒性研究",
+            "query": "(toxicities[ti] OR injury[ti] OR damage[ti] OR toxicity[ti] OR enteritis[ti]) AND (radiation[ti] OR radio*[ti]) AND (colorectal[ti] OR colon[ti] OR rectal[ti] OR rectum[ti] OR bowel[ti] OR intestine[ti] OR gastrointestinal[ti] OR intestinal[ti]) AND (2023/08/01[Date - Publication] : 2023/08/31[Date - Publication])",
+            "extraction_template": "standard",
+            "output_file": "radiation_toxicity.csv",
+            "description": "放射性肠道毒性研究，时间范围 2023 年 8 月 1 日 - 31 日",
+            "settings": {
+                "max_results": -1,
+                "include_fulltext": false
+            }
+        }
+    ],
+    "batch_settings": {
+        "task_wait_time": 5,
+        "retry_failed_tasks": true,
+        "max_concurrent_tasks": 3,
+        "progress_report_interval": 10
+    },
+    "query_validation": {
+        "validate_query_syntax": true,
+        "check_date_format": true,
+        "validate_output_path": true
+    }
+}

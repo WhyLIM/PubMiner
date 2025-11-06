@@ -1,0 +1,31 @@
+{
+    "app_info": {
+        "name": "PubMiner",
+        "version": "2.0.0",
+        "description": "基于大语言模型的模块化文献分析工具"
+    },
+    "system": {
+        "max_workers": 4,
+        "batch_size": 10,
+        "save_interval": 30,
+        "enable_resume": true,
+        "temp_dir": "./temp",
+        "log_dir": "./logs"
+    },
+    "paths": {
+        "results_dir": "./results",
+        "cache_dir": "./cache",
+        "temp_dir": "./temp"
+    },
+    "retry": {
+        "max_retries": 3,
+        "base_delay": 1.0,
+        "max_delay": 60.0,
+        "exponential_base": 2.0
+    },
+    "validation": {
+        "validate_inputs": true,
+        "validate_outputs": true,
+        "strict_mode": false
+    }
+}

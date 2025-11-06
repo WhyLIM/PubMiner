@@ -56,7 +56,6 @@
         ]
     },
     "extraction": {
-        "text_limit": 15000,
         "section_filters": [
             "abstract",
             "introduction",

@@ -1,0 +1,65 @@
+{
+    "text_extraction": {
+        "enable_pmc_api": true,
+        "enable_pdf_extraction": true,
+        "max_text_length": 50000,
+        "pmc_api_base": "https://www.ncbi.nlm.nih.gov/research/bionlp/RESTful/pmcoa.cgi/BioC_json",
+        "pdf_timeout": 30,
+        "ocr_timeout": 60,
+        "supported_formats": [
+            "pdf",
+            "pmc"
+        ]
+    },
+    "extraction": {
+        "section_filters": [
+            "abstract",
+            "introduction",
+            "background",
+            "methods",
+            "methodology",
+            "materials and methods",
+            "results",
+            "findings",
+            "discussion",
+            "conclusion",
+            "conclusions"
+        ],
+        "exclude_sections": [
+            "references",
+            "reference",
+            "bibliography",
+            "acknowledgments",
+            "acknowledgements",
+            "funding",
+            "conflict of interest",
+            "author contributions",
+            "figures",
+            "tables",
+            "supplementary",
+            "appendix"
+        ],
+        "key_section_ratio": {
+            "abstract": 0.15,
+            "introduction": 0.2,
+            "methods": 0.25,
+            "results": 0.25,
+            "discussion": 0.15
+        }
+    },
+    "bioc_processing": {
+        "enable_cache": true,
+        "cache_ttl": 86400,
+        "cache_dir": "./cache/bioc",
+        "validate_document": true,
+        "retry_on_failure": true,
+        "max_retries": 3
+    },
+    "pdf_processing": {
+        "ocr_engine": "tesseract",
+        "ocr_language": "eng+chi_sim",
+        "image_dpi": 300,
+        "enable_page_analysis": true,
+        "fallback_to_ocr": true
+    }
+}

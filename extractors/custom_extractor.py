@@ -19,13 +19,13 @@ logger = logging.getLogger(__name__)
 class CustomExtractor(BaseExtractor):
     """自定义信息提取器"""
     
-    def __init__(self, config: Dict[str, Any], 
-                 template_name: str = 'aging_biomarker',
+    def __init__(self, config: Dict[str, Any],
+                 template_name: str = 'aging_biomarkers',
                  template_path: Optional[str] = None,
                  llm_provider: str = 'deepseek'):
         """
         初始化自定义提取器
-        
+
         Args:
             config: 提取器配置
             template_name: 模板名称
@@ -33,16 +33,16 @@ class CustomExtractor(BaseExtractor):
             llm_provider: LLM提供商
         """
         super().__init__(config)
-        
+
         self.template_name = template_name
         self.template_path = template_path
         self.llm_provider = llm_provider
         self.config_manager = ConfigManager()
         self.custom_template = None
-        
+
         # 加载自定义模板
         self._load_custom_template()
-        
+
         # 初始化LLM分析器
         llm_config = self.config_manager.get_llm_config(llm_provider)
         if llm_config:

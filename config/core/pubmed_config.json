@@ -1,0 +1,28 @@
+{
+    "pubmed_api": {
+        "email": "${PUBMED_EMAIL}",
+        "api_key": "${PUBMED_API_KEY}",
+        "base_url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils",
+        "batch_size": 50,
+        "max_retries": 5,
+        "retry_wait_time": 5,
+        "api_wait_time": 0.5,
+        "rate_limit": {
+            "requests_per_second": 3,
+            "burst_limit": 10
+        }
+    },
+    "search_settings": {
+        "default_max_results": 100,
+        "sort_order": "relevance",
+        "retmode": "json",
+        "retmax": 100,
+        "retstart": 0
+    },
+    "citation_settings": {
+        "fetch_detailed_pmid_lists": true,
+        "citation_dir": "citations",
+        "include_references": true,
+        "max_depth": 2
+    }
+}
