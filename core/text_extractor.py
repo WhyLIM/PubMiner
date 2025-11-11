@@ -563,7 +563,7 @@ class TextExtractor(LoggerMixin):
 
             # 格式化章节标题为 Markdown 格式
             section_title = self._format_section_title(section_type)
-            full_text_parts.append(f"\n{section_title}\n\n{text}")
+            full_text_parts.append(f"\n\n{section_title}\n\n{text}")
 
         return "".join(full_text_parts).strip()
 

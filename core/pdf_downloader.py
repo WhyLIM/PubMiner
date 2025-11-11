@@ -3,7 +3,7 @@
 PDF 下载模块
 
 负责从多个源下载文献 PDF 文件，包括 DOI 查询、SciHub 下载、文件管理等功能
-基于RecursiveScholarCrawler项目的下载功能进行优化和集成
+基于 RecursiveScholarCrawler 项目的下载功能进行优化和集成
 """
 
 import os
@@ -29,12 +29,12 @@ logger = logging.getLogger(__name__)
 
 
 class PDFDownloader(LoggerMixin):
-    """PDF下载器 - 支持多源下载、DOI查询、文件管理"""
+    """PDF 下载器 - 支持多源下载、DOI 查询、文件管理"""
 
     def __init__(self, config: Dict[str, Any]):
         """
-        初始化PDF下载器
-        
+        初始化 PDF 下载器
+
         Args:
             config: 下载配置
         """
@@ -45,13 +45,12 @@ class PDFDownloader(LoggerMixin):
         self.timeout = config.get('timeout', 30)
         self.max_workers = config.get('max_workers', 4)
         self.verify_pdf = config.get('verify_pdf', True)
-        self.max_file_size = config.get('max_file_size',
-                                        100 * 1024 * 1024)  # 100MB
+        self.max_file_size = config.get('max_file_size', 100 * 1024 * 1024)  # 100MB
 
-        # SciHub镜像配置
+        # SciHub 镜像配置
         self.scihub_mirrors = config.get('scihub_mirrors', [
-            "https://sci-hub.se", "https://sci-hub.st", "https://sci-hub.ru",
-            "https://www.sci-hub.ren", "https://www.sci-hub.ee"
+            "https://sci-hub.se", "https://sci-hub.st", "https://sci-hub.ru", "https://www.sci-hub.ren",
+            "https://www.sci-hub.ee"
         ])
 
         # 用户代理配置
@@ -61,15 +60,13 @@ class PDFDownloader(LoggerMixin):
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         ])
 
-        # DOI API配置
-        self.doi_apis = config.get(
-            'doi_apis', {
-                'crossref': {
-                    'url': 'https://api.crossref.org/works',
-                    'enabled': True,
-                    'timeout': 15
-                }
-            })
+        # DOI API 配置
+        self.doi_apis = config.get('doi_apis',
+                                   {'crossref': {
+                                       'url': 'https://api.crossref.org/works',
+                                       'enabled': True,
+                                       'timeout': 15
+                                   }})
 
         # 创建下载目录
         self.download_dir.mkdir(parents=True, exist_ok=True)
@@ -78,30 +75,24 @@ class PDFDownloader(LoggerMixin):
         self.session = requests.Session()
         self._setup_session()
 
-        # 初始化SciHub下载器
+        # 初始化 SciHub 下载器
         self.scihub = SciHubDownloader(mirrors=self.scihub_mirrors,
                                        user_agents=self.user_agents,
                                        timeout=self.timeout,
                                        max_retries=self.max_retries)
 
-        # PMC和开放获取仓库配置
+        # PMC 和开放获取仓库配置
         self.oa_repositories = {
             'pmc': {
                 'base_url': 'https://www.ncbi.nlm.nih.gov/pmc/articles/',
-                'pdf_patterns': ['/pdf/', '/pdf/{pmc_id}.pdf'],
-                'api_url':
-                'https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/',
+                'pdf_patterns': ['/pdf', '/pdf/{pmc_id}.pdf'],
+                'api_url': 'https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/',
                 'enabled': True
             },
             'europepmc': {
-                'base_url':
-                'https://europepmc.org/articles/',
-                'pdf_patterns': [
-                    '?pdf=render',
-                    '/backend/ptpmcrender.fcgi?accid={pmc_id}&blobtype=pdf'
-                ],
-                'enabled':
-                True
+                'base_url': 'https://europepmc.org/articles/',
+                'pdf_patterns': ['?pdf=render', '/backend/ptpmcrender.fcgi?accid={pmc_id}&blobtype=pdf'],
+                'enabled': True
             },
             'crossref': {
                 'api_url': 'https://api.crossref.org/works/',
@@ -110,22 +101,15 @@ class PDFDownloader(LoggerMixin):
         }
 
         # 统计信息
-        self.stats = {
-            'total_downloads': 0,
-            'successful_downloads': 0,
-            'failed_downloads': 0,
-            'retries': 0,
-            'total_size': 0
-        }
+        self.stats = {'total_downloads': 0, 'successful_downloads': 0, 'failed_downloads': 0, 'retries': 0, 'total_size': 0}
 
         self.logger.info(f"✅ PDF 下载器初始化完成，下载目录: {self.download_dir}")
 
     def _setup_session(self):
-        """设置HTTP会话"""
+        """设置 HTTP 会话"""
         self.session.headers.update({
             'User-Agent': self._get_random_user_agent(),
-            'Accept':
-            'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.5',
             'Accept-Encoding': 'gzip, deflate',
             'Connection': 'keep-alive',
@@ -136,16 +120,14 @@ class PDFDownloader(LoggerMixin):
         """获取随机用户代理"""
         return random.choice(self.user_agents)
 
-    def _get_random_mirrors(self,
-                            exclude: Optional[List[str]] = None,
-                            count: Optional[int] = None) -> List[str]:
+    def _get_random_mirrors(self, exclude: Optional[List[str]] = None, count: Optional[int] = None) -> List[str]:
         """
         获取随机排序的镜像列表
-        
+
         Args:
             exclude: 排除的镜像列表
             count: 返回的镜像数量
-            
+
         Returns:
             镜像列表
         """
@@ -157,25 +139,21 @@ class PDFDownloader(LoggerMixin):
             return available[:count]
         return available
 
-    def _clean_filename(self,
-                        title: str,
-                        doi: Optional[str] = None,
-                        pmid: Optional[str] = None) -> str:
+    def _clean_filename(self, title: str, doi: Optional[str] = None, pmid: Optional[str] = None) -> str:
         """
         清理文件名
-        
+
         Args:
             title: 论文标题
             doi: DOI 标识符
             pmid: PMID 标识符
-            
+
         Returns:
             清理后的文件名
         """
         if title:
             # 移除特殊字符，截断长度
-            cleaned = re.sub(r'[\\/*?:"<>|]', "",
-                             title).strip()[:100].replace(" ", "_")
+            cleaned = re.sub(r'[\\/*?:"<>|]', "", title).strip()[:100].replace("", "_")
         else:
             cleaned = "unknown_paper"
 
@@ -191,10 +169,10 @@ class PDFDownloader(LoggerMixin):
     def _calculate_file_hash(self, file_path: Path) -> str:
         """
         计算文件 MD5 哈希值
-        
+
         Args:
             file_path: 文件路径
-            
+
         Returns:
             MD5 哈希值
         """
@@ -208,13 +186,243 @@ class PDFDownloader(LoggerMixin):
             self.logger.warning(f"计算文件哈希值失败: {e}")
             return ""
 
+    def _extract_pdf_url_from_html(self, html_content: str, pmc_id: str) -> Optional[str]:
+        """
+        从 PMC HTML 页面中提取 PDF 下载链接
+        基于 test.py 的成功方案，使用多级回退策略
+
+        Args:
+            html_content: HTML 页面内容
+            pmc_id: PMC ID
+
+        Returns:
+            PDF 下载 URL，如果未找到则返回 None
+        """
+        try:
+            import re
+            from bs4 import BeautifulSoup
+
+            # 解析 HTML 页面
+            soup = BeautifulSoup(html_content, 'html.parser')
+            host = "pmc.ncbi.nlm.nih.gov"
+            base_article_url = f"https://{host}/articles/PMC{pmc_id}/"
+            base_pdf_url = f"https://{host}/articles/PMC{pmc_id}/pdf"
+
+            # 策略 1：基于 test.py 的 CSS 精确定位
+            # 1) 优先：CSS 精确定位正文 PDF 按钮
+            pdf_links = []
+
+            # 查找以 /pdf/ 结尾的链接
+            pdf_end_links = soup.find_all('a', href=re.compile(r'/pdf/$'))
+            if pdf_end_links:
+                pdf_links.extend(pdf_end_links)
+                self.logger.debug(f"策略 1a: 找到 {len(pdf_end_links)} 个以 / pdf / 结尾的链接")
+
+            # 查找以 /pdf 结尾的链接（不带斜杠）
+            pdf_links.extend(soup.find_all('a', href=re.compile(r'/pdf$')))
+            self.logger.debug(f"策略 1b: 找到 {len(soup.find_all('a', href=re.compile(r'/pdf$')))} 个以 / pdf 结尾的链接")
+
+            # 如果找到链接，选择第一个
+            if pdf_links:
+                first_link = pdf_links[0]
+                href = first_link.get('href', '')
+                if href:
+                    pdf_url = self._build_full_url(href, host, pmc_id)
+                    if pdf_url:
+                        self.logger.info(f"策略 1 成功: 通过 CSS 精确定位找到 PDF 链接: {pdf_url}")
+                        return pdf_url
+
+            # 策略 2：ARIA 名称以 PDF 开头的链接（排除补充材料的文件名）
+            aria_links = []
+            for link in soup.find_all('a', attrs={"aria-label": True}):
+                aria_label = link.get('aria-label', '')
+                if re.match(r'^PDF\b', aria_label, re.I):
+                    aria_links.append(link)
+
+            if aria_links:
+                aria_link = aria_links[0]
+                href = aria_link.get('href', '')
+                if href:
+                    pdf_url = self._build_full_url(href, host, pmc_id)
+                    if pdf_url:
+                        self.logger.info(f"策略 2 成功: 通过 ARIA 标签找到 PDF 链接: {pdf_url}")
+                        return pdf_url
+
+            # 策略 3：文本包含 "Download PDF"
+            download_text_links = []
+            for link in soup.find_all('a'):
+                text = link.get_text(strip=True)
+                if re.search(r'Download PDF', text, re.I):
+                    download_text_links.append(link)
+
+            if download_text_links:
+                download_link = download_text_links[0]
+                href = download_link.get('href', '')
+                if href:
+                    pdf_url = self._build_full_url(href, host, pmc_id)
+                    if pdf_url:
+                        self.logger.info(f"策略 3 成功: 通过'Download PDF'文本找到 PDF 链接: {pdf_url}")
+                        return pdf_url
+
+            # 策略 4：查找特定 class 的下载链接（原有方法作为备用）
+            class_links = soup.find_all('a', class_='usa-link display-flex usa-tooltip')
+            self.logger.debug(f"策略 4: 找到 {len(class_links)} 个 usa-link display-flex usa-tooltip 链接")
+
+            if len(class_links) >= 2:
+                # 获取第二个链接（通常包含 PDF 下载链接）
+                second_link = class_links[1]
+                href = second_link.get('href', '')
+                if href:
+                    pdf_url = self._build_full_url(href, host, pmc_id)
+                    if pdf_url:
+                        self.logger.info(f"策略 4 成功: 通过 tooltip class 找到 PDF 链接: {pdf_url}")
+                        return pdf_url
+
+            # 策略 5：查找包含 PDF 的所有链接
+            all_pdf_links = []
+            for link in soup.find_all('a', href=True):
+                href = link.get('href', '').lower()
+                text = link.get_text(strip=True).lower()
+                # 查找链接地址或文本中包含 pdf 的链接
+                if 'pdf' in href or 'pdf' in text:
+                    # 排除明显的非正文 PDF 链接（如补充材料）
+                    if not any(exclude in href for exclude in ['supplementary', 'supplement', 'appendix']):
+                        all_pdf_links.append(link)
+
+            if all_pdf_links:
+                # 选择最有可能的 PDF 链接
+                for link in all_pdf_links[:3]:  # 只检查前 3 个
+                    href = link.get('href', '')
+                    if href:
+                        pdf_url = self._build_full_url(href, host, pmc_id)
+                        if pdf_url:
+                            self.logger.info(f"策略 5 成功: 通过 PDF 关键词找到 PDF 链接: {pdf_url}")
+                            return pdf_url
+
+            # 策略 6：直接 PDF URL 尝试
+            direct_urls = [
+                f"https://{host}/articles/{pmc_id}/pdf",
+                f"https://www.ncbi.nlm.nih.gov/pmc/articles/PMC{pmc_id}/pdf",
+                f"https://{host}/articles/{pmc_id}/pdf/{pmc_id}.pdf",
+            ]
+
+            # 快速验证直接 URL
+            for test_url in direct_urls:
+                try:
+                    import requests
+                    head_response = requests.head(test_url, timeout=5, allow_redirects=True)
+                    if head_response.status_code == 200:
+                        content_type = head_response.headers.get('Content-Type', '').lower()
+                        if 'pdf' in content_type:
+                            self.logger.info(f"策略 6 成功: 直接 PDF URL 验证成功: {test_url}")
+                            return test_url
+                except:
+                    continue
+
+            self.logger.warning(f"所有策略都未能提取到 PMC{pmc_id} 的 PDF 链接")
+            return None
+
+        except ImportError:
+            self.logger.warning("缺少 BeautifulSoup 库，无法解析 HTML 页面")
+            return None
+        except Exception as e:
+            self.logger.error(f"解析 HTML 页面提取 PDF 链接失败: {e}")
+            return None
+
+    def _build_full_url(self, href: str, host: str, pmc_id: str) -> Optional[str]:
+        """
+        构建完整的 PDF URL
+
+        Args:
+            href: 相对或绝对 URL
+            host: 主机名
+            pmc_id: PMC ID
+
+        Returns:
+            完整的 URL 或 None
+        """
+        try:
+            if not href:
+                return None
+
+            href = href.strip()
+
+            if href.startswith('http'):
+                return href
+            elif href.startswith('//'):
+                return f"https:{href}"
+            elif href.startswith('/'):
+                return f"https://{host}{href}"
+            else:
+                # 相对路径，构建完整 URL
+                return f"https://{host}/articles/PMC{pmc_id}/{href}"
+        except Exception as e:
+            self.logger.debug(f"构建完整 URL 失败: {e}")
+            return None
+
+    def _validate_pdf_url(self, pdf_url: str, article_url: str = None, timeout: int = 10) -> Tuple[bool, str]:
+        """
+        验证 PDF URL 是否有效，处理 PMC 的异步准备页面
+
+        Args:
+            pdf_url: PDF URL
+            article_url: 文章页面 URL（用于 Referer）
+            timeout: 请求超时时间
+
+        Returns:
+            (是否有效, 详细信息)
+        """
+        try:
+            headers = {
+                'User-Agent': self._get_random_user_agent(),
+                'Referer': article_url or 'https://www.ncbi.nlm.nih.gov/pmc/',
+                'Accept': 'application/pdf,text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            }
+
+            # 第一次请求
+            response = self.session.head(pdf_url, timeout=timeout, headers=headers, allow_redirects=True)
+
+            if response.status_code == 200:
+                content_type = response.headers.get('Content-Type', '').lower()
+                content_length = response.headers.get('Content-Length', '0')
+
+                self.logger.debug(f"PDF URL 验证 - Status: {response.status_code}, Type: {content_type}, Size: {content_length}")
+
+                if 'pdf' in content_type:
+                    return True, f"有效的 PDF 链接: {content_type}, 大小: {content_length} bytes"
+                elif 'html' in content_type:
+                    # 可能是准备页面，进行 GET 请求进一步验证
+                    get_response = self.session.get(pdf_url, timeout=timeout, headers=headers)
+                    if get_response.status_code == 200:
+                        get_content_type = get_response.headers.get('Content-Type', '').lower()
+                        if 'pdf' in get_content_type:
+                            return True, f"有效的 PDF 链接（GET 请求）: {get_content_type}, 大小: {content_length} bytes"
+                        else:
+                            # 检查是否包含准备页面的关键词
+                            response_text = get_response.text[:1000].lower()
+                            if any(keyword in response_text for keyword in ['preparing', 'download', 'pdf', 'loading']):
+                                return True, f"PMC 准备页面，可能需要等待: {get_content_type}"
+                            else:
+                                return False, f"HTML 页面不是准备页面: {get_content_type}"
+                    else:
+                        return False, f"GET 请求失败: HTTP {get_response.status_code}"
+                else:
+                    return False, f"未知的 Content-Type: {content_type}"
+            else:
+                return False, f"HTTP 请求失败: {response.status_code}"
+
+        except requests.exceptions.Timeout:
+            return False, "请求超时"
+        except Exception as e:
+            return False, f"验证过程出错: {str(e)}"
+
     def _validate_pdf_file(self, file_path: Path) -> bool:
         """
         验证 PDF 文件有效性
-        
+
         Args:
             file_path: PDF 文件路径
-            
+
         Returns:
             是否为有效的 PDF 文件
         """
@@ -232,7 +440,7 @@ class PDFDownloader(LoggerMixin):
                 self.logger.warning(f"PDF 文件过大: {file_size} bytes")
                 return False
 
-            # 检查PDF文件头
+            # 检查 PDF 文件头
             with open(file_path, 'rb') as f:
                 header = f.read(8)
                 if not header.startswith(b'%PDF'):
@@ -245,7 +453,7 @@ class PDFDownloader(LoggerMixin):
                     import fitz  # PyMuPDF
                     with fitz.open(str(file_path)) as doc:
                         if doc.page_count > 0:
-                            self.logger.debug(f"✅ PDF验证成功: {doc.page_count} 页")
+                            self.logger.debug(f"✅ PDF 验证成功: {doc.page_count} 页")
                             return True
                         else:
                             self.logger.warning("PDF 文件没有页面内容")
@@ -263,15 +471,14 @@ class PDFDownloader(LoggerMixin):
             self.logger.error(f"PDF 文件验证出错: {e}")
             return False
 
-    def _find_pdf_link_in_html(self, html_content: str,
-                               base_url: str) -> Optional[str]:
+    def _find_pdf_link_in_html(self, html_content: str, base_url: str) -> Optional[str]:
         """
         从 HTML 内容中查找 PDF 下载链接
-        
+
         Args:
             html_content: HTML 内容
             base_url: 基础 URL
-            
+
         Returns:
             PDF 下载链接或 None
         """
@@ -291,8 +498,7 @@ class PDFDownloader(LoggerMixin):
             # 查找 PDF 下载链接
             for link in soup.find_all('a', href=True):
                 href = link['href']
-                if ('pdf' in href.lower() or link.get('id') == 'download'
-                        or 'download' in link.get('class', [])):
+                if ('pdf' in href.lower() or link.get('id') == 'download' or 'download' in link.get('class', [])):
                     if href.startswith('//'):
                         return f"https:{href}"
                     if not href.startswith('http'):
@@ -305,90 +511,95 @@ class PDFDownloader(LoggerMixin):
             self.logger.error(f"解析 HTML 查找 PDF 链接时出错: {e}")
             return None
 
-    def _download_file_with_progress(
-            self,
-            url: str,
-            output_path: Path,
-            timeout: Optional[int] = None) -> Tuple[bool, Optional[str]]:
+    def _download_and_save_pdf(self,
+                               url: str = None,
+                               response: requests.Response = None,
+                               output_path: Path = None,
+                               timeout: Optional[int] = None,
+                               expected_size: int = None) -> Tuple[bool, Optional[str]]:
         """
-        下载文件并显示进度
-        
+        统一的 PDF 下载和保存函数
+
         Args:
-            url: 下载 URL
+            url: 下载 URL（如果不提供 response 则必需）
+            response: 已有的 HTTP 响应对象（可选）
             output_path: 输出路径
             timeout: 超时时间
-            
+            expected_size: 期望的文件大小
+
         Returns:
             (是否成功, 错误信息)
         """
         try:
             timeout = timeout or self.timeout
 
-            # 发送HEAD请求获取文件大小
-            head_response = self.session.head(url, timeout=timeout)
-            total_size = int(head_response.headers.get('content-length', 0))
+            # 如果没有提供响应对象，则下载
+            if response is None:
+                if not url:
+                    return False, "缺少 URL 或响应对象"
 
-            # 下载文件
-            response = self.session.get(url, timeout=timeout, stream=True)
-            response.raise_for_status()
+                # 下载文件
+                response = self.session.get(url, timeout=timeout, stream=True)
+                response.raise_for_status()
 
-            downloaded_size = 0
+            # 确保输出路径存在
+            if output_path is None:
+                return False, "缺少输出路径"
 
+            # 保存文件
             with open(output_path, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
-                        downloaded_size += len(chunk)
 
             # 验证下载的文件
-            if self._validate_pdf_file(output_path):
+            if self._validate_pdf_file(output_path, expected_size):
                 file_size = output_path.stat().st_size
                 self.stats['total_size'] += file_size
-                self.logger.info(
-                    f"✅ 下载成功: {output_path.name} ({file_size} bytes)")
+                self.logger.info(f"✅ PDF 保存成功: {output_path.name} ({file_size/1024:.1f}KB)")
                 return True, None
             else:
                 # 删除无效文件
                 if output_path.exists():
                     output_path.unlink()
-                return False, "下载的文件不是有效的 PDF"
+                return False, "保存的文件验证失败，不是有效的 PDF"
 
         except requests.exceptions.Timeout:
             return False, f"下载超时 ({timeout} 秒)"
         except requests.exceptions.RequestException as e:
             return False, f"网络请求错误: {e}"
+        except IOError as e:
+            self.logger.error(f"文件写入失败: {e}")
+            if output_path and output_path.exists():
+                output_path.unlink(missing_ok=True)
+            return False, f"文件写入失败: {e}"
         except Exception as e:
-            return False, f"下载过程错误: {e}"
+            self.logger.error(f"下载过程出错: {e}")
+            if output_path and output_path.exists():
+                output_path.unlink(missing_ok=True)
+            return False, f"下载过程出错: {e}"
 
     def get_download_stats(self) -> Dict[str, Any]:
         """
         获取下载统计信息
-        
+
         Returns:
             统计信息字典
         """
         success_rate = 0
         if self.stats['total_downloads'] > 0:
-            success_rate = (self.stats['successful_downloads'] /
-                            self.stats['total_downloads']) * 100
+            success_rate = (self.stats['successful_downloads'] / self.stats['total_downloads']) * 100
 
         return {
             **self.stats, 'success_rate':
             round(success_rate, 2),
             'average_file_size':
-            (self.stats['total_size'] / self.stats['successful_downloads']
-             if self.stats['successful_downloads'] > 0 else 0)
+            (self.stats['total_size'] / self.stats['successful_downloads'] if self.stats['successful_downloads'] > 0 else 0)
         }
 
     def reset_stats(self):
         """重置统计信息"""
-        self.stats = {
-            'total_downloads': 0,
-            'successful_downloads': 0,
-            'failed_downloads': 0,
-            'retries': 0,
-            'total_size': 0
-        }
+        self.stats = {'total_downloads': 0, 'successful_downloads': 0, 'failed_downloads': 0, 'retries': 0, 'total_size': 0}
         self.logger.info("📊 下载统计信息已重置")
 
     def _create_download_directory(self) -> bool:
@@ -400,42 +611,41 @@ class PDFDownloader(LoggerMixin):
             self.logger.error(f"创建下载目录失败: {e}")
             return False
 
-    def _generate_safe_filename(self, doi: str, title: str = None) -> str:
-        """生成安全的文件名"""
-        # 清理 DOI 作为基础文件名
-        safe_doi = doi.replace('/', '_').replace('\\', '_')
-        safe_doi = ''.join(c for c in safe_doi if c.isalnum() or c in '._-')
-
-        # 如果有标题，添加到文件名中
-        if title:
-            # 清理标题
-            safe_title = ''.join(c for c in title
-                                 if c.isalnum() or c in ' ._-')
-            safe_title = safe_title.replace(' ', '_')[:50]  # 限制长度
-            filename = f"{safe_doi}_{safe_title}.pdf"
-        else:
-            filename = f"{safe_doi}.pdf"
-
-        return filename
-
     def _sanitize_doi(self, doi: str) -> str:
-        """将DOI转换为安全的文件名部分"""
+        """将 DOI 转换为安全的文件名部分"""
         if not doi:
             return "unknown"
         safe_doi = doi.replace('/', '_').replace('\\', '_')
         safe_doi = ''.join(c for c in safe_doi if c.isalnum() or c in '._-')
         return safe_doi
 
-    def _generate_filename(self, doi: str, source: str) -> str:
-        """根据DOI和来源生成统一格式的文件名，如 {doi}_{source}.pdf（source小写）"""
+    def _generate_filename(self, doi: str, source: str = "download", title: str = None) -> str:
+        """
+        生成统一的文件名格式
+
+        Args:
+            doi: DOI 标识符
+            source: 下载源标识 (默认为 "download")
+            title: 论文标题 (可选)
+
+        Returns:
+            统一格式的文件名，如 {doi}_{source}.pdf
+        """
         safe_doi = self._sanitize_doi(doi)
-        suffix = (source or "source").lower()
-        return f"{safe_doi}_{suffix}.pdf"
+        suffix = (source or "download").lower()
+
+        if title:
+            # 如果有标题，添加到文件名中
+            safe_title = ''.join(c for c in title if c.isalnum() or c in '._-')
+            safe_title = safe_title.replace('_', '_')[:50]  # 限制长度
+            return f"{safe_doi}_{suffix}_{safe_title}.pdf"
+        else:
+            return f"{safe_doi}_{suffix}.pdf"
 
     def download_from_scihub(self, doi: str) -> Tuple[bool, Optional[Path], Optional[str]]:
-        """从SciHub下载PDF，返回(成功, 路径, 错误)"""
+        """从 SciHub 下载 PDF，返回 (成功, 路径, 错误)"""
         try:
-            self.logger.info(f"尝试从SciHub下载: {doi}")
+            self.logger.info(f"尝试从 SciHub 下载: {doi}")
             filename = f"{self._sanitize_doi(doi)}_SciHub.pdf"
             output_path = self.download_dir / filename
 
@@ -443,19 +653,23 @@ class PDFDownloader(LoggerMixin):
             if success:
                 if self._validate_pdf_file(output_path):
                     file_size = output_path.stat().st_size
-                    self.logger.info(f"✅ SciHub下载成功: {filename} ({file_size} bytes)")
+                    self.logger.info(f"✅ SciHub 下载成功: {filename} ({file_size} bytes)")
                     return True, output_path, None
                 else:
                     output_path.unlink(missing_ok=True)
-                    return False, None, "下载的PDF验证失败"
+                    return False, None, "下载的 PDF 验证失败"
             else:
-                return False, None, error_msg or "SciHub下载失败"
+                return False, None, error_msg or "SciHub 下载失败"
         except Exception as e:
             return False, None, str(e)
 
-    def download_with_retry(self, download_callable, *args, max_retries: Optional[int] = None,
-                            retry_delay: Optional[int] = None, **kwargs) -> Tuple[bool, Optional[Path], Optional[str]]:
-        """通用重试包装器，接受一个返回(成功, 路径, 错误)的下载函数"""
+    def download_with_retry(self,
+                            download_callable,
+                            *args,
+                            max_retries: Optional[int] = None,
+                            retry_delay: Optional[int] = None,
+                            **kwargs) -> Tuple[bool, Optional[Path], Optional[str]]:
+        """通用重试包装器，接受一个返回 (成功, 路径, 错误) 的下载函数"""
         retries = max_retries if max_retries is not None else self.max_retries
         delay = retry_delay if retry_delay is not None else self.retry_delay
         last_error = None
@@ -472,37 +686,6 @@ class PDFDownloader(LoggerMixin):
                 self.logger.info(f"重试 {attempt}/{retries} 异常: {e}. 等待 {delay} 秒...")
                 time.sleep(delay)
         return False, None, last_error or "重试后仍失败"
-
-    def _check_file_integrity(self,
-                              file_path: Path,
-                              expected_size: int = None) -> bool:
-        """检查文件完整性"""
-        try:
-            if not file_path.exists():
-                return False
-
-            # 检查文件大小
-            file_size = file_path.stat().st_size
-            if file_size == 0:
-                return False
-
-            # 如果提供了期望大小，进行比较
-            if expected_size and abs(file_size -
-                                     expected_size) > 1024:  # 允许1KB差异
-                self.logger.warning(
-                    f"文件大小不匹配: 期望 {expected_size}, 实际 {file_size}")
-
-            # 验证 PDF 格式
-            with open(file_path, 'rb') as f:
-                content = f.read(1024)  # 读取前 1KB 进行快速验证
-                if not content.startswith(b'%PDF-'):
-                    return False
-
-            return True
-
-        except Exception as e:
-            self.logger.error(f"检查文件完整性失败: {e}")
-            return False
 
     def _handle_duplicate_file(self, file_path: Path) -> Path:
         """处理重复文件名"""
@@ -532,10 +715,10 @@ class PDFDownloader(LoggerMixin):
     def _normalize_title(self, title: str) -> str:
         """
         标准化论文标题以提高匹配准确性
-        
+
         Args:
             title: 原始标题
-            
+
         Returns:
             标准化后的标题
         """
@@ -547,11 +730,11 @@ class PDFDownloader(LoggerMixin):
     def _calculate_similarity_score(self, title1: str, title2: str) -> float:
         """
         计算两个标题的相似度分数
-        
+
         Args:
-            title1: 标题1
-            title2: 标题2
-            
+            title1: 标题 1
+            title2: 标题 2
+
         Returns:
             相似度分数 (0-1)
         """
@@ -561,7 +744,7 @@ class PDFDownloader(LoggerMixin):
             normalized2 = self._normalize_title(title2)
             return SequenceMatcher(None, normalized1, normalized2).ratio()
         except ImportError:
-            # 如果没有difflib，使用简单的字符串匹配
+            # 如果没有 difflib，使用简单的字符串匹配
             normalized1 = self._normalize_title(title1)
             normalized2 = self._normalize_title(title2)
             if normalized1 == normalized2:
@@ -574,10 +757,10 @@ class PDFDownloader(LoggerMixin):
     def check_open_access_status(self, doi: str) -> Dict[str, Any]:
         """
         检查文章的开放获取状态
-        
+
         Args:
-            doi: DOI标识符
-            
+            doi: DOI 标识符
+
         Returns:
             开放获取状态信息
         """
@@ -594,7 +777,7 @@ class PDFDownloader(LoggerMixin):
         }
 
         try:
-            # 查询Crossref API
+            # 查询 Crossref API
             crossref_url = f"https://api.crossref.org/works/{doi}"
             response = self.session.get(crossref_url, timeout=15)
 
@@ -606,15 +789,14 @@ class PDFDownloader(LoggerMixin):
                 licenses = work.get('license', [])
                 if licenses:
                     result['license'] = licenses[0].get('URL', '')
-                    if any(lic in result['license'].lower()
-                           for lic in ['cc-by', 'creative-commons']):
+                    if any(lic in result['license'].lower() for lic in ['cc-by', 'creative-commons']):
                         result['is_open_access'] = True
 
                 # 检查开放获取标记
                 if work.get('is-referenced-by-count', 0) > 0:
                     result['is_open_access'] = True
 
-                # 查找PMC ID
+                # 查找 PMC ID
                 for link in work.get('link', []):
                     url = link.get('URL', '')
                     if 'pmc' in url.lower():
@@ -623,20 +805,18 @@ class PDFDownloader(LoggerMixin):
                             result['pmc_id'] = pmc_match.group(1)
                             result['is_open_access'] = True
 
-                # 查找PDF链接
+                # 查找 PDF 链接
                 for link in work.get('link', []):
                     if link.get('content-type') == 'application/pdf':
                         result['pdf_urls'].append(link.get('URL'))
 
                 result['source'] = 'crossref'
-                self.logger.info(
-                    f"Crossref查询完成: OA={result['is_open_access']}, PMC={result['pmc_id']}"
-                )
+                self.logger.info(f"Crossref 查询完成: OA={result['is_open_access']}, PMC={result['pmc_id']}")
 
         except Exception as e:
-            self.logger.warning(f"Crossref查询失败: {e}")
+            self.logger.warning(f"Crossref 查询失败: {e}")
 
-        # 如果没有找到PMC ID，尝试PMC ID转换API
+        # 如果没有找到 PMC ID，尝试 PMC ID 转换 API
         if not result['pmc_id']:
             try:
                 pmc_api_url = f"https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/?tool=pubminer&email=user@example.com&ids={doi}&format=json"
@@ -649,135 +829,103 @@ class PDFDownloader(LoggerMixin):
                         pmc_id = records[0]['pmcid'].replace('PMC', '')
                         result['pmc_id'] = pmc_id
                         result['is_open_access'] = True
-                        self.logger.info(f"PMC ID转换成功: PMC{pmc_id}")
+                        self.logger.info(f"PMC ID 转换成功: PMC{pmc_id}")
 
             except Exception as e:
-                self.logger.warning(f"PMC ID转换失败: {e}")
+                self.logger.warning(f"PMC ID 转换失败: {e}")
 
         return result
 
-    def download_from_pmc(
-            self,
-            pmc_id: str,
-            doi: str = None) -> Tuple[bool, Optional[Path], Optional[str]]:
+    def download_from_pmc(self, pmc_id: str, doi: str = None) -> Tuple[bool, Optional[Path], Optional[str]]:
         """
-        从PMC下载PDF（带重试机制）
-        
+        从 PMC 下载 PDF（带重试机制），优先使用基于 test.py 的增强策略
+
         Args:
             pmc_id: PMC ID
             doi: DOI (可选，用于文件命名)
-            
+
         Returns:
             (成功标志, 文件路径, 错误信息)
         """
-        self.logger.info(f"尝试从PMC下载: PMC{pmc_id}")
+        self.logger.info(f"尝试从 PMC 下载: PMC{pmc_id}")
 
-        # 尝试不同的PMC URL格式
-        pmc_urls = [
-            f"https://www.ncbi.nlm.nih.gov/pmc/articles/PMC{pmc_id}/pdf/",
-            f"https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC{pmc_id}&blobtype=pdf",
-            f"https://www.ncbi.nlm.nih.gov/pmc/articles/PMC{pmc_id}/pdf/{pmc_id}.pdf"
-        ]
+        # 策略顺序：EuropePMC 首选 -> Playwright 备选 -> 传统方法兜底
+        # 策略 1：优先使用 EuropePMC（已验证成功率高）
+        self.logger.info("策略 1: 尝试 EuropePMC（首选，已验证成功）...")
+        try:
+            europepmc_urls = [
+                f"https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC{pmc_id}&blobtype=pdf",
+                f"https://europepmc.org/articles/PMC{pmc_id}?pdf=render"
+            ]
 
-        last_error = None
+            for i, url in enumerate(europepmc_urls):
+                self.logger.info(f"尝试 EuropePMC URL {i+1}/{len(europepmc_urls)}: {url}")
 
-        # 对每个URL进行重试
-        for url_index, url in enumerate(pmc_urls):
-            self.logger.info(
-                f"尝试PMC URL {url_index + 1}/{len(pmc_urls)}: {url}")
+                # 使用更长的超时时间和重试
+                success, file_path, error = self.download_with_retry(urls=[url],
+                                                                     output_dir=self.download_dir,
+                                                                     max_retries=3,
+                                                                     use_scihub_fallback=False)
 
-            # 每个URL重试最多3次
-            for attempt in range(3):
-                try:
-                    if attempt > 0:
-                        wait_time = 2**attempt  # 指数退避：2, 4秒
-                        self.logger.info(
-                            f"PMC重试 {attempt + 1}/3，等待{wait_time}秒...")
-                        time.sleep(wait_time)
+                if success and file_path and file_path.exists():
+                    self.logger.info(f"✅ EuropePMC 首选策略成功: {file_path.name}")
+                    return True, file_path, None
+                else:
+                    self.logger.debug(f"EuropePMC URL {i+1} 失败: {error}")
 
-                    self.logger.info(f"PMC下载尝试 {attempt + 1}/3")
-                    response = self.session.get(url, timeout=30, stream=True)
+        except Exception as e:
+            self.logger.warning(f"EuropePMC 首选策略失败: {e}")
 
-                    if response.status_code == 200:
-                        content_type = response.headers.get(
-                            'Content-Type', '').lower()
-                        if 'pdf' in content_type:
-                            # 生成文件名：{doi}_{source}.pdf
-                            if doi:
-                                safe_doi = doi.replace('/',
-                                                       '_').replace('\\', '_')
-                                filename = f"{safe_doi}_PMC.pdf"
-                            else:
-                                filename = f"pmc_{pmc_id}_PMC.pdf"
+        # 策略 2：使用 Playwright 作为备选策略
+        self.logger.info("策略 2: 尝试 Playwright 策略（备选方案）...")
+        try:
+            playwright_success, playwright_path = self._download_with_playwright(pmc_id, doi)
+            if playwright_success:
+                self.logger.info("✅ Playwright 备选策略成功")
+                return True, playwright_path, None
+            else:
+                self.logger.warning("Playwright 备选策略未成功")
+        except ImportError as e:
+            self.logger.warning(f"Playwright 不可用: {e}")
+        except Exception as e:
+            self.logger.warning(f"Playwright 备选策略失败: {e}")
 
-                            output_path = self.download_dir / filename
+        # 策略 3：传统方法作为最后兜底
+        self.logger.info("策略 3: 尝试传统 PMC 解析方法（兜底）...")
+        try:
+            article_url = f"https://www.ncbi.nlm.nih.gov/pmc/articles/PMC{pmc_id}/"
+            headers = {'User-Agent': self._get_random_user_agent(), 'Referer': 'https://www.google.com/'}
+            response = self.session.get(article_url, timeout=30, headers=headers)
 
-                            # 下载文件
-                            try:
-                                with open(output_path, 'wb') as f:
-                                    for chunk in response.iter_content(
-                                            chunk_size=8192):
-                                        if chunk:
-                                            f.write(chunk)
+            if response.status_code == 200 and 'html' in response.headers.get('Content-Type', '').lower():
+                self.logger.info("成功获取 PMC 文章页面，开始解析 PDF 链接...")
+                pdf_url = self._extract_pdf_url_from_html(response.text, pmc_id)
 
-                                # 验证文件
-                                if self._validate_pdf_file(output_path):
-                                    file_size = output_path.stat().st_size
-                                    self.logger.info(
-                                        f"PMC下载成功: {filename} ({file_size/1024:.1f}KB)"
-                                    )
-                                    return True, output_path, None
-                                else:
-                                    output_path.unlink(missing_ok=True)
-                                    last_error = f"PMC下载的文件验证失败: {url}"
-                                    self.logger.warning(last_error)
-                                    break  # 文件验证失败，尝试下一个URL
+                if pdf_url:
+                    filename = self._generate_filename(doi, "PMC")
+                    output_path = self.download_dir / filename
+                    self.logger.info(f"尝试传统下载: {pdf_url}")
 
-                            except IOError as e:
-                                last_error = f"PMC文件写入失败: {e}"
-                                self.logger.warning(last_error)
-                                if output_path.exists():
-                                    output_path.unlink(missing_ok=True)
-                                continue  # 重试当前URL
+                    # 简化的下载逻辑
+                    resp = self.session.get(pdf_url, timeout=30, stream=True)
+                    if resp.status_code == 200 and 'pdf' in resp.headers.get('Content-Type', '').lower():
+                        success, _ = self._download_and_save_pdf(response=resp, output_path=output_path)
+                        if success:
+                            self.logger.info("✅ 传统方法兜底成功")
+                            return True, output_path, None
+        except Exception as e:
+            self.logger.warning(f"传统方法兜底失败: {e}")
 
-                        else:
-                            last_error = f"PMC返回非PDF内容: {content_type}"
-                            self.logger.warning(last_error)
-                            break  # 内容类型错误，尝试下一个URL
-                    else:
-                        last_error = f"PMC访问失败: HTTP {response.status_code}"
-                        self.logger.warning(last_error)
-                        if response.status_code in [403, 404]:
-                            break  # 权限或资源问题，尝试下一个URL
-                        continue  # 其他HTTP错误，重试当前URL
+        return False, None, "所有 PMC 下载策略均失败"
 
-                except requests.exceptions.Timeout:
-                    last_error = f"PMC下载超时: {url}"
-                    self.logger.warning(last_error)
-                    continue  # 超时，重试当前URL
-
-                except requests.exceptions.ConnectionError:
-                    last_error = f"PMC连接失败: {url}"
-                    self.logger.warning(last_error)
-                    continue  # 连接错误，重试当前URL
-
-                except Exception as e:
-                    last_error = f"PMC下载出错: {e}"
-                    self.logger.warning(last_error)
-                    continue  # 其他错误，重试当前URL
-
-        return False, None, last_error or "所有PMC下载尝试都失败"
-
-    def query_doi_by_title(self,
-                           title: str,
-                           api: str = 'crossref') -> Dict[str, Any]:
+    def query_doi_by_title(self, title: str, api: str = 'crossref') -> Dict[str, Any]:
         """
         通过标题查询 DOI 信息
-        
+
         Args:
             title: 论文标题
             api: 使用的 API 服务 ('crossref')
-            
+
         Returns:
             DOI 查询结果字典
         """
@@ -798,15 +946,14 @@ class PDFDownloader(LoggerMixin):
             self.logger.error(f"DOI 查询出错: {e}")
             return {"doi": None, "error": str(e)}
 
-    def _query_crossref(self, title: str,
-                        api_config: Dict[str, Any]) -> Dict[str, Any]:
+    def _query_crossref(self, title: str, api_config: Dict[str, Any]) -> Dict[str, Any]:
         """
         使用 CrossRef API 查询 DOI
-        
+
         Args:
             title: 论文标题
             api_config: API 配置
-            
+
         Returns:
             查询结果
         """
@@ -814,25 +961,15 @@ class PDFDownloader(LoggerMixin):
         timeout = api_config.get('timeout', 15)
 
         headers = {
-            'User-Agent':
-            'PubMiner/1.0 (https://github.com/pubminer; mailto:contact@example.com)',
+            'User-Agent': 'PubMiner/1.0 (https://github.com/pubminer; mailto:contact@example.com)',
             'Accept': 'application/json'
         }
 
-        params = {
-            "query.bibliographic": title,
-            "rows": 5,
-            "sort": "score",
-            "order": "desc"
-        }
+        params = {"query.bibliographic": title, "rows": 5, "sort": "score", "order": "desc"}
 
         try:
             # 使用 API 管理器进行限流
-            response = api_manager.get(url,
-                                       headers=headers,
-                                       params=params,
-                                       timeout=timeout,
-                                       api_name='crossref')
+            response = api_manager.get(url, headers=headers, params=params, timeout=timeout, api_name='crossref')
 
             response.raise_for_status()
             data = response.json()
@@ -872,17 +1009,13 @@ class PDFDownloader(LoggerMixin):
                         "authors":
                         item.get("author", []),
                         "published":
-                        item.get("published-print", {}).get(
-                            "date-parts", [[]])[0]
-                        if item.get("published-print") else [],
+                        item.get("published-print", {}).get("date-parts", [[]])[0] if item.get("published-print") else [],
                         "url":
                         item.get("URL", "")
                     }
 
             if best_match:
-                self.logger.info(
-                    f"✅ 找到最佳 DOI 匹配: {best_match['doi']} (相似度: {best_score:.2f})"
-                )
+                self.logger.info(f"✅ 找到最佳 DOI 匹配: {best_match['doi']} (相似度: {best_score:.2f})")
                 return best_match
             else:
                 self.logger.warning(f"未找到高置信度的 DOI 匹配: {title}")
@@ -895,19 +1028,16 @@ class PDFDownloader(LoggerMixin):
             self.logger.error(f"CrossRef API 查询异常: {e}")
             return {"doi": None, "error": f"查询异常: {e}"}
 
-    def query_doi_batch(
-            self,
-            titles: List[str],
-            max_workers: Optional[int] = None) -> List[Dict[str, Any]]:
+    def query_doi_batch(self, titles: List[str], max_workers: Optional[int] = None) -> List[Dict[str, Any]]:
         """
-        批量查询DOI
-        
+        批量查询 DOI
+
         Args:
             titles: 标题列表
             max_workers: 最大并发数
-            
+
         Returns:
-            DOI查询结果列表
+            DOI 查询结果列表
         """
         max_workers = max_workers or min(self.max_workers, len(titles))
 
@@ -917,10 +1047,7 @@ class PDFDownloader(LoggerMixin):
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # 提交任务
-            future_to_title = {
-                executor.submit(self.query_doi_by_title, title): title
-                for title in titles
-            }
+            future_to_title = {executor.submit(self.query_doi_by_title, title): title for title in titles}
 
             # 收集结果
             for future in as_completed(future_to_title):
@@ -931,29 +1058,22 @@ class PDFDownloader(LoggerMixin):
                     results.append(result)
                 except Exception as e:
                     self.logger.error(f"批量 DOI 查询失败: {title} - {e}")
-                    results.append({
-                        "doi": None,
-                        "error": str(e),
-                        "query_title": title
-                    })
+                    results.append({"doi": None, "error": str(e), "query_title": title})
 
         successful = len([r for r in results if r.get('doi')])
         self.logger.info(f"✅ 批量 DOI 查询完成: {successful}/{len(titles)} 成功")
 
         return results
 
-    def download_by_doi(self,
-                        doi: str,
-                        title: Optional[str] = None,
-                        output_dir: Optional[Path] = None) -> Dict[str, Any]:
+    def download_by_doi(self, doi: str, title: Optional[str] = None, output_dir: Optional[Path] = None) -> Dict[str, Any]:
         """
         通过 DOI 下载 PDF 文件
-        
+
         Args:
             doi: DOI 标识符
             title: 论文标题（用于文件命名）
             output_dir: 输出目录
-            
+
         Returns:
             下载结果字典
         """
@@ -963,7 +1083,7 @@ class PDFDownloader(LoggerMixin):
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # 检查文件是否已存在（检查PMC和SciHub两种命名）
+        # 检查文件是否已存在（检查 PMC 和 SciHub 两种命名）
         safe_doi = doi.replace('/', '_').replace('\\', '_')
         pmc_filename = f"{safe_doi}_PMC.pdf"
         scihub_filename = f"{safe_doi}_SciHub.pdf"
@@ -971,12 +1091,12 @@ class PDFDownloader(LoggerMixin):
         pmc_path = output_dir / pmc_filename
         scihub_path = output_dir / scihub_filename
 
-        # SciHub下载使用的文件路径
+        # SciHub 下载使用的文件路径
         output_path = scihub_path
 
         if pmc_path.exists() and self._validate_pdf_file(pmc_path):
             file_size = pmc_path.stat().st_size
-            self.logger.info(f"✅ PMC文件已存在: {pmc_filename} ({file_size} bytes)")
+            self.logger.info(f"✅ PMC 文件已存在: {pmc_filename} ({file_size} bytes)")
             return {
                 'success': True,
                 'doi': doi,
@@ -990,8 +1110,7 @@ class PDFDownloader(LoggerMixin):
 
         if scihub_path.exists() and self._validate_pdf_file(scihub_path):
             file_size = scihub_path.stat().st_size
-            self.logger.info(
-                f"✅ SciHub文件已存在: {scihub_filename} ({file_size} bytes)")
+            self.logger.info(f"✅ SciHub 文件已存在: {scihub_filename} ({file_size} bytes)")
             return {
                 'success': True,
                 'doi': doi,
@@ -1007,11 +1126,10 @@ class PDFDownloader(LoggerMixin):
         self.logger.info(f"检查开放获取状态: {doi}")
         oa_status = self.check_open_access_status(doi)
 
-        # 如果有PMC ID，优先尝试PMC下载（只尝试一次）
+        # 如果有 PMC ID，优先尝试 PMC 下载（只尝试一次）
         if oa_status.get('pmc_id'):
-            self.logger.info(f"发现PMC ID: PMC{oa_status['pmc_id']}，尝试PMC下载")
-            pmc_success, pmc_path, pmc_error = self.download_from_pmc(
-                oa_status['pmc_id'], doi)
+            self.logger.info(f"发现 PMC ID: PMC{oa_status['pmc_id']}，尝试 PMC 下载")
+            pmc_success, pmc_path, pmc_error = self.download_from_pmc(oa_status['pmc_id'], doi)
 
             if pmc_success and pmc_path:
                 file_size = pmc_path.stat().st_size
@@ -1030,18 +1148,16 @@ class PDFDownloader(LoggerMixin):
                     'error': None
                 }
             else:
-                self.logger.warning(f"PMC下载失败: {pmc_error}")
-                self.logger.info("转为SciHub下载策略")
+                self.logger.warning(f"PMC 下载失败: {pmc_error}")
+                self.logger.info("转为 SciHub 下载策略")
 
-        # 尝试SciHub下载（带重试）
+        # 尝试 SciHub 下载（带重试）
         for attempt in range(self.max_retries):
             try:
-                self.logger.info(
-                    f"📥 SciHub下载 (尝试 {attempt + 1}/{self.max_retries}): {doi}")
+                self.logger.info(f"📥 SciHub 下载 (尝试 {attempt + 1}/{self.max_retries}): {doi}")
 
-                # 使用SciHub下载
-                success, error = self.scihub.download_by_doi(
-                    doi, output_path, delay=self.retry_delay)
+                # 使用 SciHub 下载
+                success, error = self.scihub.download_by_doi(doi, output_path, delay=self.retry_delay)
 
                 if success and self._validate_pdf_file(output_path):
                     file_size = output_path.stat().st_size
@@ -1088,18 +1204,15 @@ class PDFDownloader(LoggerMixin):
             'attempts': self.max_retries
         }
 
-    def download_by_pmid(self,
-                         pmid: str,
-                         title: Optional[str] = None,
-                         output_dir: Optional[Path] = None) -> Dict[str, Any]:
+    def download_by_pmid(self, pmid: str, title: Optional[str] = None, output_dir: Optional[Path] = None) -> Dict[str, Any]:
         """
         通过 PMID 下载 PDF 文件（先查询 DOI 再下载）
-        
+
         Args:
             pmid: PMID 标识符
             title: 论文标题
             output_dir: 输出目录
-            
+
         Returns:
             下载结果字典
         """
@@ -1107,14 +1220,14 @@ class PDFDownloader(LoggerMixin):
         if not title:
             title = f"PMID_{pmid}"
 
-        # 首先查询DOI
+        # 首先查询 DOI
         doi_result = self.query_doi_by_title(title)
 
         if doi_result.get('doi'):
             doi = doi_result['doi']
             self.logger.info(f"✅ 通过标题找到 DOI: {doi}")
 
-            # 使用找到的DOI下载
+            # 使用找到的 DOI 下载
             result = self.download_by_doi(doi, title, output_dir)
             result['pmid'] = pmid
             result['doi_source'] = 'title_query'
@@ -1138,19 +1251,15 @@ class PDFDownloader(LoggerMixin):
                 'doi_query_error': doi_result.get('error')
             }
 
-    def download_with_fallback(
-            self,
-            doi: Optional[str],
-            title: str,
-            output_dir: Optional[Path] = None) -> Dict[str, Any]:
+    def download_with_fallback(self, doi: Optional[str], title: str, output_dir: Optional[Path] = None) -> Dict[str, Any]:
         """
         带回退机制的下载（参考 RecursiveScholarCrawler 的逻辑）
-        
+
         Args:
             doi: DOI 标识符（可选）
             title: 论文标题
             output_dir: 输出目录
-            
+
         Returns:
             下载结果字典
         """
@@ -1195,7 +1304,7 @@ class PDFDownloader(LoggerMixin):
                 'download_method': 'failed'
             }
 
-        # 避免重复下载相同的DOI
+        # 避免重复下载相同的 DOI
         if new_doi == doi:
             error_msg = f"查询到的 DOI 与失败的 DOI 相同: {new_doi}"
             self.logger.warning(error_msg)
@@ -1210,7 +1319,7 @@ class PDFDownloader(LoggerMixin):
                 'download_method': 'failed'
             }
 
-        # 步骤3：使用新找到的DOI下载
+        # 步骤 3：使用新找到的 DOI 下载
         self.logger.info(f"✨ 找到新的 DOI，开始下载: {new_doi}")
         result = self.download_by_doi(new_doi, title, output_dir)
 
@@ -1224,19 +1333,18 @@ class PDFDownloader(LoggerMixin):
 
         return result
 
-    def batch_download(
-            self,
-            items: List[Dict[str, Any]],
-            max_workers: Optional[int] = None,
-            output_dir: Optional[Path] = None) -> List[Dict[str, Any]]:
+    def batch_download(self,
+                       items: List[Dict[str, Any]],
+                       max_workers: Optional[int] = None,
+                       output_dir: Optional[Path] = None) -> List[Dict[str, Any]]:
         """
         批量下载 PDF 文件
-        
+
         Args:
-            items: 下载项目列表，每项包含 'doi', 'title', 'pmid' 等字段
+            items: 下载项目列表，每项包含'doi', 'title', 'pmid' 等字段
             max_workers: 最大并发数
             output_dir: 输出目录
-            
+
         Returns:
             下载结果列表
         """
@@ -1258,14 +1366,11 @@ class PDFDownloader(LoggerMixin):
 
                 # 选择下载方法
                 if doi and title:
-                    future = executor.submit(self.download_with_fallback, doi,
-                                             title, output_dir)
+                    future = executor.submit(self.download_with_fallback, doi, title, output_dir)
                 elif pmid and title:
-                    future = executor.submit(self.download_by_pmid, pmid,
-                                             title, output_dir)
+                    future = executor.submit(self.download_by_pmid, pmid, title, output_dir)
                 elif doi:
-                    future = executor.submit(self.download_by_doi, doi, title,
-                                             output_dir)
+                    future = executor.submit(self.download_by_doi, doi, title, output_dir)
                 else:
                     # 无法下载的项目
                     results.append({
@@ -1309,18 +1414,16 @@ class PDFDownloader(LoggerMixin):
 
         return results
 
-    def retry_failed_downloads(
-        self,
-        failed_results: List[Dict[str, Any]],
-        max_retries: Optional[int] = None
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    def retry_failed_downloads(self,
+                               failed_results: List[Dict[str, Any]],
+                               max_retries: Optional[int] = None) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         重试失败的下载
-        
+
         Args:
             failed_results: 失败的下载结果列表
             max_retries: 最大重试次数
-            
+
         Returns:
             (仍然失败的结果, 重试成功的结果)
         """
@@ -1348,9 +1451,7 @@ class PDFDownloader(LoggerMixin):
                 still_failed.append(result)
                 continue
 
-            self.logger.info(
-                f"重试 {retry_count}/{max_retries} [{i+1}/{len(failed_results)}]: {title or doi or pmid}"
-            )
+            self.logger.info(f"重试 {retry_count}/{max_retries} [{i+1}/{len(failed_results)}]: {title or doi or pmid}")
 
             # 选择重试方法
             if doi and title:
@@ -1364,12 +1465,9 @@ class PDFDownloader(LoggerMixin):
 
             # 更新结果
             retry_result.update({
-                'retry_count':
-                retry_count,
-                'retry_time':
-                time.strftime('%Y-%m-%d %H:%M:%S'),
-                'original_error':
-                result.get('error')
+                'retry_count': retry_count,
+                'retry_time': time.strftime('%Y-%m-%d %H:%M:%S'),
+                'original_error': result.get('error')
             })
 
             if retry_result['success']:
@@ -1383,10 +1481,130 @@ class PDFDownloader(LoggerMixin):
             if i < len(failed_results) - 1:
                 time.sleep(self.retry_delay)
 
-        self.logger.info(
-            f"🔄 重试完成: {len(newly_successful)} 成功, {len(still_failed)} 仍然失败")
+        self.logger.info(f"🔄 重试完成: {len(newly_successful)} 成功, {len(still_failed)} 仍然失败")
 
         return still_failed, newly_successful
+
+    def _download_with_playwright(self, pmc_id: str, doi: str = None) -> Tuple[bool, Optional[Path]]:
+        """
+        使用 Playwright 下载 PDF
+
+        Args:
+            pmc_id: PMC ID
+            doi: DOI (可选，用于文件命名)
+
+        Returns:
+            (成功标志, 文件路径)
+        """
+        try:
+            from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+            import re
+        except ImportError:
+            self.logger.debug("Playwright 未安装，跳过 Playwright 策略")
+            raise ImportError("Playwright not available")
+
+        pmcid = f"PMC{pmc_id}"
+        host = "pmc.ncbi.nlm.nih.gov"
+        article_url = f"https://{host}/articles/{pmcid}/"
+        pdf_url = f"https://{host}/articles/{pmcid}/pdf"
+
+        # 生成文件名
+        if doi:
+            safe_doi = doi.replace('/', '_').replace('\\', '_')
+            filename = f"{safe_doi}_PMC_Playwright.pdf"
+        else:
+            filename = f"pmc_{pmc_id}_PMC_Playwright.pdf"
+
+        output_path = self.download_dir / filename
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            try:
+                ctx = browser.new_context()
+                page = ctx.new_page()
+
+                # 进入文章页
+                page.goto(article_url, wait_until="domcontentloaded")
+
+                # --- 1) 优先：CSS 精确定位正文 PDF 按钮 ---
+                pdf_link = page.locator("a[href$='/pdf/']").first
+                if not pdf_link.count():
+                    pdf_link = page.locator("a[href$='/pdf']").first
+
+                # --- 2) 回退：ARIA 名称以 PDF 开头的链接（排除补充材料的文件名）---
+                if not pdf_link.count():
+                    # 例如 "PDF (2.4 MB)"
+                    pdf_link = page.get_by_role("link", name=re.compile(r"^PDF\\b", re.I)).first
+
+                # --- 3) 兜底：直接查找包含 PDF 的链接，排除 tooltip ---
+                if not pdf_link.count():
+                    # 查找所有包含 "PDF" 的可见链接
+                    pdf_links = page.locator("a:has-text('PDF')").filter(has_not_text="tooltip").first
+                    if pdf_links.count() > 0:
+                        pdf_link = pdf_links
+
+                if not pdf_link.count():
+                    # 最后尝试：查找实际的链接元素，排除 tooltip span
+                    all_links = page.locator("a[href*='pdf'], a[href$='pdf/'], a[href$='.pdf']").first
+                    if all_links.count() > 0:
+                        pdf_link = all_links
+
+                if not pdf_link.count():
+                    self.logger.warning("找不到正文 PDF 按钮；页面结构可能变化。")
+                    return False, None
+
+                # 有些站点把 PDF 链接设为 target=_blank，这里同时监听可能的 popup
+                popup = None
+                try:
+                    with page.expect_popup(timeout=2000) as pop_ctx:
+                        pdf_link.click(timeout=10000)
+                    popup = pop_ctx.value
+                except PWTimeout:
+                    # 没有新标签，就在当前页
+                    pdf_link.click(timeout=10000)
+
+                # 等校验脚本跑完（给得稍微宽裕一点）
+                page.wait_for_load_state("networkidle")
+                page.wait_for_timeout(2000)
+
+                # 用与页面同一会话的 request 客户端获取 PDF
+                # 不直接用 popup 的 content，因为有时是中间页 / 准备页
+                resp = ctx.request.get(pdf_url)
+                if resp.ok and resp.headers.get("content-type", "").startswith("application/pdf"):
+                    with open(output_path, "wb") as f:
+                        f.write(resp.body())
+                    # 更新统计信息
+                    file_size = output_path.stat().st_size
+                    self.stats['total_size'] += file_size
+                    self.logger.info(f"✅ Playwright 下载成功: 通过 ctx.request ({file_size/1024:.1f}KB)")
+                    return True, output_path
+                else:
+                    # 再尝试直接从当前 DOM 读 href（有时带 query 的真实 pdf 地址）
+                    try:
+                        href = pdf_link.get_attribute("href")
+                        if href and not href.startswith("http"):
+                            href = f"https://{host}{href}"
+                        if href:
+                            r2 = ctx.request.get(href)
+                            if r2.ok and r2.headers.get("content-type", "").startswith("application/pdf"):
+                                with open(output_path, "wb") as f:
+                                    f.write(r2.body())
+                                # 更新统计信息
+                                file_size = output_path.stat().st_size
+                                self.stats['total_size'] += file_size
+                                self.logger.info(f"✅ Playwright 下载成功: 通过 DOM href ({file_size/1024:.1f}KB)")
+                                return True, output_path
+                            else:
+                                self.logger.warning("Playwright: DOM href not PDF")
+                        else:
+                            self.logger.warning("Playwright: no href")
+                    except Exception as e:
+                        self.logger.warning(f"Playwright: exception reading href: {e}")
+
+                return False, None
+
+            finally:
+                browser.close()
 
     def __del__(self):
         """析构函数，关闭会话"""

@@ -24,11 +24,59 @@ from utils.logger import LoggerMixin
 from utils.file_handler import FileHandler
 from utils.api_manager import api_manager
 
-# 禁用 SSL 警告
+# 改进 SSL 配置
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-ssl._create_default_https_context = ssl._create_unverified_context
+
+
+# 创建更健壮的 SSL 上下文
+def create_ssl_context():
+    """创建健壮的 SSL 上下文"""
+    try:
+        # 创建一个更宽松的 SSL 上下文
+        context = ssl.create_default_context()
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+        # 设置更兼容的加密套件
+        context.set_ciphers('DEFAULT@SECLEVEL=1')
+        # 设置更长的超时
+        import socket
+        socket.setdefaulttimeout(60)
+        return context
+    except Exception as e:
+        logger.warning(f"创建 SSL 上下文失败: {e}")
+        # 回退到不验证的上下文
+        return ssl._create_unverified_context()
+
+
+# 应用改进的 SSL 配置
+try:
+    ssl_context = create_ssl_context()
+    ssl._create_default_https_context = lambda: ssl_context
+except:
+    ssl_context = ssl._create_unverified_context()
+    ssl._create_default_https_context = ssl._create_unverified_context
 
 logger = logging.getLogger(__name__)
+
+
+# 为 BioPython Entrez 配置 SSL 上下文和重试设置
+def configure_entrez_ssl():
+    """为 Entrez 配置 SSL 和重试设置"""
+    try:
+        from Bio import Entrez
+        # 设置 SSL 上下文
+        Entrez.ssl_context = ssl_context
+        # 设置重试次数
+        Entrez.max_retries = 3
+        # 设置超时时间
+        Entrez.timeout = 60
+        logger.info("已为 Entrez 配置 SSL 上下文")
+    except Exception as e:
+        logger.warning(f"为 Entrez 配置 SSL 上下文失败: {e}")
+
+
+# 配置 Entrez
+configure_entrez_ssl()
 
 
 class PubMedFetcher(LoggerMixin):
@@ -83,13 +131,13 @@ class PubMedFetcher(LoggerMixin):
             "total_articles": 0,
             "fetched_articles": 0,
             "retries": 0,
+            "errors": 0,
             "start_time": datetime.now(),
         }
 
-    @api_manager.with_retry(max_retries=5, retry_delay=2.0)
     def _fetch_with_retry(self, fetch_function, *args, **kwargs):
         """
-        带重试的 API 请求
+        带重试的 API 请求（改进的 SSL 和网络错误处理）
 
         Args:
             fetch_function: Entrez 函数
@@ -98,22 +146,72 @@ class PubMedFetcher(LoggerMixin):
         Returns:
             API 响应结果
         """
-        try:
-            # 应用限流
-            if self.api_name in api_manager.rate_limiters:
-                api_manager.rate_limiters[self.api_name].wait_if_needed()
+        max_retries = kwargs.pop('max_retries', self.max_retries)
+        retry_delay = kwargs.pop('retry_delay', self.retry_wait_time)
 
-            result = fetch_function(*args, **kwargs)
-            return result
+        for attempt in range(max_retries + 1):
+            try:
+                # 应用限流
+                if self.api_name in api_manager.rate_limiters:
+                    api_manager.rate_limiters[self.api_name].wait_if_needed()
 
-        except HTTPError as e:
-            self.logger.warning(f"HTTP 错误 : {e.code} - {e.reason}")
-            self.stats["retries"] += 1
-            raise
-        except Exception as e:
-            self.logger.warning(f"API 调用错误 : {e}")
-            self.stats["retries"] += 1
-            raise
+                # 设置更长的超时时间
+                if 'timeout' not in kwargs:
+                    kwargs['timeout'] = 60  # 60 秒超时
+
+                result = fetch_function(*args, **kwargs)
+                return result
+
+            except HTTPError as e:
+                self.logger.warning(f"HTTP 错误 (尝试 {attempt + 1}/{max_retries + 1}): {e.code} - {e.reason}")
+                if attempt < max_retries:
+                    wait_time = retry_delay * (2**attempt)  # 指数退避
+                    self.logger.info(f"等待 {wait_time} 秒后重试...")
+                    import time
+                    time.sleep(wait_time)
+                    self.stats["retries"] += 1
+                else:
+                    self.logger.error(f"HTTP 错误，已达到最大重试次数: {e}")
+                    raise
+
+            except urllib3.exceptions.SSLError as e:
+                self.logger.warning(f"SSL 错误 (尝试 {attempt + 1}/{max_retries + 1}): {e}")
+                if attempt < max_retries:
+                    wait_time = retry_delay * (2**attempt)
+                    self.logger.info(f"等待 {wait_time} 秒后重试...")
+                    import time
+                    time.sleep(wait_time)
+                    self.stats["retries"] += 1
+                else:
+                    self.logger.error(f"SSL 错误，已达到最大重试次数: {e}")
+                    raise
+
+            except urllib3.exceptions.ConnectionError as e:
+                self.logger.warning(f"连接错误 (尝试 {attempt + 1}/{max_retries + 1}): {e}")
+                if attempt < max_retries:
+                    wait_time = retry_delay * (2**attempt)
+                    self.logger.info(f"等待 {wait_time} 秒后重试...")
+                    import time
+                    time.sleep(wait_time)
+                    self.stats["retries"] += 1
+                else:
+                    self.logger.error(f"连接错误，已达到最大重试次数: {e}")
+                    raise
+
+            except Exception as e:
+                error_msg = str(e).lower()
+                # 特别处理 SSL 相关错误
+                if any(keyword in error_msg for keyword in ['ssl', 'eof', 'certificate', 'handshake', 'connection reset']):
+                    self.logger.warning(f"网络 / SSL 错误 (尝试 {attempt + 1}/{max_retries + 1}): {e}")
+                    if attempt < max_retries:
+                        wait_time = retry_delay * (2**attempt) + 5  # 额外增加 5 秒
+                        self.logger.info(f"等待 {wait_time} 秒后重试...")
+                        import time
+                        time.sleep(wait_time)
+                    self.stats["retries"] += 1
+                else:
+                    self.logger.error(f"未知错误，已达到最大重试次数: {e}")
+                    raise
 
     def extract_publication_date(self, record: Dict[str, Any]) -> str:
         """
@@ -161,64 +259,62 @@ class PubMedFetcher(LoggerMixin):
         self.logger.debug(f"获取详细的引用 PMID 列表")
 
         # 使用重试机制批量获取引用信息
-        for attempt in range(self.max_retries):
-            try:
-                # 批量获取引用信息
-                handle_elink = Entrez.elink(db="pubmed",
-                                            id=pmid_list,
-                                            linkname="pubmed_pubmed_citedin,pubmed_pubmed_refs",
-                                            retmode="xml",
-                                            cmd="neighbor")
-                records_elink = Entrez.read(handle_elink)
-                handle_elink.close()
+        try:
+            # 批量获取引用信息
+            handle_elink = self._fetch_with_retry(Entrez.elink,
+                                                  db="pubmed",
+                                                  id=pmid_list,
+                                                  linkname="pubmed_pubmed_citedin,pubmed_pubmed_refs",
+                                                  retmode="xml",
+                                                  cmd="neighbor",
+                                                  max_retries=self.max_retries,
+                                                  retry_delay=self.retry_wait_time)
 
-                # 处理每个 PMID 的结果
-                for i, record in enumerate(records_elink):
-                    pmid = pmid_list[i] if i < len(pmid_list) else None
-                    if not pmid:
-                        continue
+            # 检查响应内容是否有效
+            if handle_elink is None:
+                raise Exception("获取引用信息失败：API 返回空响应")
 
-                    linked = []
-                    references = []
+            records_elink = Entrez.read(handle_elink)
+            handle_elink.close()
 
-                    if "LinkSetDb" in record:
-                        for linkset in record["LinkSetDb"]:
-                            if linkset["LinkName"] == "pubmed_pubmed_citedin" and "Link" in linkset:
-                                linked.extend(link["Id"] for link in linkset["Link"] if link.get("Id"))
-                            elif linkset["LinkName"] == "pubmed_pubmed_refs" and "Link" in linkset:
-                                references.extend(link["Id"] for link in linkset["Link"] if link.get("Id"))
-
-                    citation_dict[pmid] = (linked, references)
-
-                break
-
-            except HTTPError as e:
-                if e.code in [429, 500, 502, 503, 504]:
-                    wait_time = self.retry_wait_time * (attempt + 1)
-                    self.logger.warning(
-                        f"批量获取引用信息 HTTP 错误 {e.code}，等待 {wait_time} 秒后重试 ( 尝试 {attempt + 1}/{self.max_retries})...")
-                    self.stats["retries"] += 1
-                    time.sleep(wait_time)
+            # 处理每个 PMID 的结果
+            for i, record in enumerate(records_elink):
+                pmid = pmid_list[i] if i < len(pmid_list) else None
+                if not pmid:
                     continue
-                else:
-                    self.logger.error(f"批量获取引用信息 HTTP 错误 : {e}")
-                    break
-            except Exception as e:
-                error_msg = str(e).lower()
-                if any(keyword in error_msg for keyword in ['eof', 'connection', 'closed', 'timeout', 'read failed']):
-                    wait_time = self.retry_wait_time * (attempt + 1)
-                    self.logger.warning(f"批量获取引用信息网络错误，等待 {wait_time} 秒后重试 ( 尝试 {attempt + 1}/{self.max_retries}): {e}")
-                    self.stats["retries"] += 1
-                    time.sleep(wait_time)
-                    if attempt < self.max_retries - 1:
-                        continue
-                else:
-                    self.logger.warning(f"批量获取引用信息失败 : {e}")
-                    if attempt < self.max_retries - 1:
-                        self.stats["retries"] += 1
-                        time.sleep(self.retry_wait_time)
-                        continue
-                break
+
+                linked = []
+                references = []
+
+                if "LinkSetDb" in record:
+                    for linkset in record["LinkSetDb"]:
+                        if linkset["LinkName"] == "pubmed_pubmed_citedin" and "Link" in linkset:
+                            linked.extend(link["Id"] for link in linkset["Link"] if link.get("Id"))
+                        elif linkset["LinkName"] == "pubmed_pubmed_refs" and "Link" in linkset:
+                            references.extend(link["Id"] for link in linkset["Link"] if link.get("Id"))
+
+                citation_dict[pmid] = (linked, references)
+
+        except RuntimeError as e:
+            # 特别处理 XML 解析错误
+            if "Couldn't resolve" in str(e) or "address table is empty" in str(e):
+                self.logger.warning(f"PubMed API XML 解析错误，可能是临时服务问题: {e}")
+                # 为每个 PMID 设置空引用信息
+                for pmid in pmid_list:
+                    citation_dict[pmid] = ([], [])
+                self.stats["errors"] += 1
+            else:
+                self.logger.error(f"批量获取引用信息失败 (RuntimeError): {e}")
+                self.stats["errors"] += 1
+                # 重新抛出其他 RuntimeError
+                raise
+        except Exception as e:
+            self.logger.error(f"批量获取引用信息失败: {e}")
+            self.stats["errors"] += 1
+            # 确保即使出错也返回空结果而不是崩溃
+            for pmid in pmid_list:
+                if pmid not in citation_dict:
+                    citation_dict[pmid] = ([], [])
 
         return citation_dict
 
@@ -235,67 +331,65 @@ class PubMedFetcher(LoggerMixin):
         citation_dict = {}
 
         # 使用重试机制批量获取引用数量
-        for attempt in range(self.max_retries):
-            try:
-                # 批量获取引用信息（只获取数量）
-                handle_elink = Entrez.elink(db="pubmed",
-                                            id=pmid_list,
-                                            linkname="pubmed_pubmed_citedin,pubmed_pubmed_refs",
-                                            retmode="xml",
-                                            cmd="neighbor")
-                records_elink = Entrez.read(handle_elink)
-                handle_elink.close()
+        try:
+            # 批量获取引用信息（只获取数量）
+            handle_elink = self._fetch_with_retry(Entrez.elink,
+                                                  db="pubmed",
+                                                  id=pmid_list,
+                                                  linkname="pubmed_pubmed_citedin,pubmed_pubmed_refs",
+                                                  retmode="xml",
+                                                  cmd="neighbor",
+                                                  max_retries=self.max_retries,
+                                                  retry_delay=self.retry_wait_time)
 
-                # 处理每个 PMID 的结果，只计算数量
-                for i, record in enumerate(records_elink):
-                    pmid = pmid_list[i] if i < len(pmid_list) else None
-                    if not pmid:
-                        continue
+            # 检查响应内容是否有效
+            if handle_elink is None:
+                raise Exception("获取引用数量失败：API 返回空响应")
 
-                    cited_count = 0
-                    references_count = 0
+            records_elink = Entrez.read(handle_elink)
+            handle_elink.close()
 
-                    if "LinkSetDb" in record:
-                        for linkset in record["LinkSetDb"]:
-                            if linkset["LinkName"] == "pubmed_pubmed_citedin" and "Link" in linkset:
-                                cited_count = len(linkset["Link"])
-                            elif linkset["LinkName"] == "pubmed_pubmed_refs" and "Link" in linkset:
-                                references_count = len(linkset["Link"])
-
-                    # 使用 COUNT_ONLY 标记传递数量信息
-                    citation_dict[pmid] = (
-                        [f"COUNT_ONLY:{cited_count}"],  # 特殊标记表示只有数量
-                        [f"COUNT_ONLY:{references_count}"])
-
-                break
-
-            except HTTPError as e:
-                if e.code in [429, 500, 502, 503, 504]:
-                    wait_time = self.retry_wait_time * (attempt + 1)
-                    self.logger.warning(
-                        f"批量获取引用数量 HTTP 错误 {e.code}，等待 {wait_time} 秒后重试 ( 尝试 {attempt + 1}/{self.max_retries})...")
-                    self.stats["retries"] += 1
-                    time.sleep(wait_time)
+            # 处理每个 PMID 的结果，只计算数量
+            for i, record in enumerate(records_elink):
+                pmid = pmid_list[i] if i < len(pmid_list) else None
+                if not pmid:
                     continue
-                else:
-                    self.logger.error(f"批量获取引用数量 HTTP 错误 : {e}")
-                    break
-            except Exception as e:
-                error_msg = str(e).lower()
-                if any(keyword in error_msg for keyword in ['eof', 'connection', 'closed', 'timeout', 'read failed']):
-                    wait_time = self.retry_wait_time * (attempt + 1)
-                    self.logger.warning(f"批量获取引用数量网络错误，等待 {wait_time} 秒后重试 ( 尝试 {attempt + 1}/{self.max_retries}): {e}")
-                    self.stats["retries"] += 1
-                    time.sleep(wait_time)
-                    if attempt < self.max_retries - 1:
-                        continue
-                else:
-                    self.logger.warning(f"批量获取引用数量失败 : {e}")
-                    if attempt < self.max_retries - 1:
-                        self.stats["retries"] += 1
-                        time.sleep(self.retry_wait_time)
-                        continue
-                break
+
+                cited_count = 0
+                references_count = 0
+
+                if "LinkSetDb" in record:
+                    for linkset in record["LinkSetDb"]:
+                        if linkset["LinkName"] == "pubmed_pubmed_citedin" and "Link" in linkset:
+                            cited_count = len(linkset["Link"])
+                        elif linkset["LinkName"] == "pubmed_pubmed_refs" and "Link" in linkset:
+                            references_count = len(linkset["Link"])
+
+                # 使用 COUNT_ONLY 标记传递数量信息
+                citation_dict[pmid] = (
+                    [f"COUNT_ONLY:{cited_count}"],  # 特殊标记表示只有数量
+                    [f"COUNT_ONLY:{references_count}"])
+
+        except RuntimeError as e:
+            # 特别处理 XML 解析错误
+            if "Couldn't resolve" in str(e) or "address table is empty" in str(e):
+                self.logger.warning(f"PubMed API XML 解析错误，可能是临时服务问题: {e}")
+                # 为每个 PMID 设置空引用信息
+                for pmid in pmid_list:
+                    citation_dict[pmid] = ([f"COUNT_ONLY:0"], [f"COUNT_ONLY:0"])
+                self.stats["errors"] += 1
+            else:
+                self.logger.error(f"批量获取引用数量失败 (RuntimeError): {e}")
+                self.stats["errors"] += 1
+                # 重新抛出其他 RuntimeError
+                raise
+        except Exception as e:
+            self.logger.error(f"批量获取引用数量失败: {e}")
+            self.stats["errors"] += 1
+            # 确保即使出错也返回空结果而不是崩溃
+            for pmid in pmid_list:
+                if pmid not in citation_dict:
+                    citation_dict[pmid] = ([f"COUNT_ONLY:0"], [f"COUNT_ONLY:0"])
 
         return citation_dict
 
@@ -393,7 +487,6 @@ class PubMedFetcher(LoggerMixin):
             self.logger.error(f"读取现有数据时出错 : {e}")
             return set(), [], None
 
-    
     def _log_completion_stats(self, data: List[Dict[str, Any]], output_dir: Path = None):
         """
         记录完成统计信息
@@ -410,9 +503,14 @@ class PubMedFetcher(LoggerMixin):
         else:
             self.logger.info(f"📄 数据已获取，可通过 DataProcessor 保存为文件")
 
-    def _process_batch_with_progress(self, records: List, batch_pmids: List[str],
-                                   data: List[Dict[str, Any]], output_file: Path,
-                                   batch_progress, resume: bool = False, existing_pmids: set = None) -> int:
+    def _process_batch_with_progress(self,
+                                     records: List,
+                                     batch_pmids: List[str],
+                                     data: List[Dict[str, Any]],
+                                     output_file: Path,
+                                     batch_progress,
+                                     resume: bool = False,
+                                     existing_pmids: set = None) -> int:
         """
         处理一批数据并保存结果
 
@@ -463,7 +561,6 @@ class PubMedFetcher(LoggerMixin):
 
         return processed_count
 
-    
     def fetch_by_query(self, query: str, resume: bool = True, max_results: int = None) -> List[Dict[str, Any]]:
         """
         根据查询词获取文献信息
@@ -561,15 +658,13 @@ class PubMedFetcher(LoggerMixin):
             batch_pmids = [record.get('PMID') for record in records]
 
             # 使用通用批处理方法
-            batch_processed = self._process_batch_with_progress(
-                records=records,
-                batch_pmids=batch_pmids,
-                data=data,
-                output_file=self.output_dir,
-                batch_progress=batch_progress,
-                resume=resume,
-                existing_pmids=existing_pmids
-            )
+            batch_processed = self._process_batch_with_progress(records=records,
+                                                                batch_pmids=batch_pmids,
+                                                                data=data,
+                                                                output_file=self.output_dir,
+                                                                batch_progress=batch_progress,
+                                                                resume=resume,
+                                                                existing_pmids=existing_pmids)
 
             processed_count += batch_processed
 
@@ -636,15 +731,13 @@ class PubMedFetcher(LoggerMixin):
                 handle.close()
 
                 # 使用通用批处理方法
-                self._process_batch_with_progress(
-                    records=records,
-                    batch_pmids=batch_pmids,
-                    data=data,
-                    output_file=output_file,
-                    batch_progress=batch_progress,
-                    resume=resume,
-                    existing_pmids=existing_pmids
-                )
+                self._process_batch_with_progress(records=records,
+                                                  batch_pmids=batch_pmids,
+                                                  data=data,
+                                                  output_file=output_file,
+                                                  batch_progress=batch_progress,
+                                                  resume=resume,
+                                                  existing_pmids=existing_pmids)
 
             except Exception as e:
                 self.logger.error(f"❌ 处理批次失败 : {e}")
