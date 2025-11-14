@@ -1,0 +1,78 @@
+name: pubminer
+channels:
+  - defaults
+  - conda-forge
+  - anaconda
+
+dependencies:
+  # Python版本
+  - python=3.11
+
+  # 核心科学计算包
+  - numpy>=1.21.0
+  - pandas>=1.5.0
+  - scipy>=1.9.0
+
+  # 网络请求和解析
+  - requests>=2.28.0
+  - urllib3>=1.26.0
+  - lxml>=4.9.0
+  - beautifulsoup4>=4.11.0
+
+  # 数据处理和输出
+  - openpyxl>=3.0.0
+  - xlsxwriter>=3.0.0
+
+  # PDF和图像处理
+  - pillow>=9.0.0
+  - pytesseract>=0.3.10
+
+  # 系统工具
+  - tqdm>=4.64.0
+  - colorlog>=6.0.0
+  - python-dotenv>=0.19.0
+
+  # 终端美化
+  - rich>=13.0.0
+
+  # 生物信息学
+  - biopython>=1.79
+
+  # Web框架（可选）
+  - flask>=2.2.0
+  - flask-cors>=3.0.0
+
+  # 异步处理
+  - aiohttp>=3.8.0
+
+  # 高级文本处理
+  - regex>=2022.0.0
+
+  # 开发和测试工具
+  - pytest>=7.0.0
+  - pytest-cov>=4.0.0
+  - black>=22.0.0
+  - flake8>=5.0.0
+
+  # 性能监控
+  - psutil>=5.9.0
+  - memory-profiler>=0.60.0
+
+  # 通过pip安装的包（PyMuPDF, playwright等）
+  - pip
+  - pip:
+    # PDF处理
+    - PyMuPDF>=1.20.0
+    - pdf2image
+
+    # 网页自动化（可选，用于复杂PDF下载）
+    - playwright>=1.40.0
+
+    # AI分析（可选，根据需要安装）
+    # - openai>=1.0.0
+
+    # 中文分词（可选）
+    # - jieba>=0.42.1
+
+# 额外的conda包配置
+prefix: null

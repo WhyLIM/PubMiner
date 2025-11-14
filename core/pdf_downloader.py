@@ -65,7 +65,9 @@ class PDFDownloader(LoggerMixin):
                                    {'crossref': {
                                        'url': 'https://api.crossref.org/works',
                                        'enabled': True,
-                                       'timeout': 15
+                                       'timeout': 15,
+                                       'max_retries': 3,
+                                       'retry_delay': 2.0
                                    }})
 
         # 创建下载目录
@@ -416,12 +418,13 @@ class PDFDownloader(LoggerMixin):
         except Exception as e:
             return False, f"验证过程出错: {str(e)}"
 
-    def _validate_pdf_file(self, file_path: Path) -> bool:
+    def _validate_pdf_file(self, file_path: Path, expected_size: Optional[int] = None) -> bool:
         """
         验证 PDF 文件有效性
 
         Args:
             file_path: PDF 文件路径
+            expected_size: 期望的文件大小（可选）
 
         Returns:
             是否为有效的 PDF 文件
@@ -439,6 +442,13 @@ class PDFDownloader(LoggerMixin):
             if file_size > self.max_file_size:
                 self.logger.warning(f"PDF 文件过大: {file_size} bytes")
                 return False
+
+            # 如果提供了期望大小，检查是否匹配（允许10%的误差）
+            if expected_size is not None:
+                size_diff_ratio = abs(file_size - expected_size) / expected_size
+                if size_diff_ratio > 0.1:  # 超过10%差异
+                    self.logger.warning(f"PDF 文件大小不匹配: 期望 {expected_size}, 实际 {file_size} (差异 {size_diff_ratio:.1%})")
+                    # 不直接返回False，继续验证文件内容，但记录警告
 
             # 检查 PDF 文件头
             with open(file_path, 'rb') as f:
@@ -849,9 +859,9 @@ class PDFDownloader(LoggerMixin):
         """
         self.logger.info(f"尝试从 PMC 下载: PMC{pmc_id}")
 
-        # 策略顺序：EuropePMC 首选 -> Playwright 备选 -> 传统方法兜底
-        # 策略 1：优先使用 EuropePMC（已验证成功率高）
-        self.logger.info("策略 1: 尝试 EuropePMC（首选，已验证成功）...")
+        # 策略顺序：EuropePMC 首选 -> Playwright 备选
+        # 策略 1：优先使用 EuropePMC
+        self.logger.info("策略 1: 尝试 EuropePMC（首选策略）...")
         try:
             europepmc_urls = [
                 f"https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC{pmc_id}&blobtype=pdf",
@@ -861,60 +871,67 @@ class PDFDownloader(LoggerMixin):
             for i, url in enumerate(europepmc_urls):
                 self.logger.info(f"尝试 EuropePMC URL {i+1}/{len(europepmc_urls)}: {url}")
 
+                # 生成输出文件路径
+                if doi:
+                    safe_doi = doi.replace('/', '_').replace('\\', '_')
+                    filename = f"{safe_doi}_PMC_EuropePMC.pdf"
+                else:
+                    filename = f"pmc_{pmc_id}_PMC_EuropePMC.pdf"
+
+                output_path = self.download_dir / filename
+
+                # 确保下载目录存在
+                self.download_dir.mkdir(parents=True, exist_ok=True)
+
+                # 包装 _download_and_save_pdf 使其符合 download_with_retry 期望的格式
+                def download_wrapper():
+                    success, error_msg = self._download_and_save_pdf(url=url, output_path=output_path)
+                    if success:
+                        return True, output_path, None
+                    else:
+                        return False, None, error_msg or "EuropePMC 下载失败"
+
                 # 使用更长的超时时间和重试
-                success, file_path, error = self.download_with_retry(urls=[url],
-                                                                     output_dir=self.download_dir,
-                                                                     max_retries=3,
-                                                                     use_scihub_fallback=False)
+                success, file_path, error = self.download_with_retry(download_wrapper, max_retries=3, retry_delay=2)
 
                 if success and file_path and file_path.exists():
-                    self.logger.info(f"✅ EuropePMC 首选策略成功: {file_path.name}")
+                    self.logger.info(f"✅ EuropePMC 下载成功: {file_path.name}")
                     return True, file_path, None
                 else:
                     self.logger.debug(f"EuropePMC URL {i+1} 失败: {error}")
 
         except Exception as e:
-            self.logger.warning(f"EuropePMC 首选策略失败: {e}")
+            self.logger.warning(f"EuropePMC 下载失败: {e}")
 
-        # 策略 2：使用 Playwright 作为备选策略
+        # 策略 2：使用 Playwright 作为备选策略，添加重试机制
         self.logger.info("策略 2: 尝试 Playwright 策略（备选方案）...")
         try:
-            playwright_success, playwright_path = self._download_with_playwright(pmc_id, doi)
+
+            def download_func():
+                return self._download_with_playwright(pmc_id, doi)
+
+            # 包装 _download_with_playwright 使其符合 download_with_retry 期望的格式
+            def playwright_wrapper():
+                success, path = self._download_with_playwright(pmc_id, doi)
+                if success:
+                    return True, path, None
+                else:
+                    return False, None, "Playwright 下载失败"
+
+            playwright_success, playwright_path, playwright_error = self.download_with_retry(
+                playwright_wrapper,
+                max_retries=max(1, self.max_retries // 2)  # 使用较少的重试次数，避免过度消耗
+            )
+
             if playwright_success:
-                self.logger.info("✅ Playwright 备选策略成功")
+                self.logger.info("✅ Playwright 下载成功")
                 return True, playwright_path, None
             else:
-                self.logger.warning("Playwright 备选策略未成功")
+                self.logger.warning(f"Playwright 下载失败: {playwright_error}")
         except ImportError as e:
             self.logger.warning(f"Playwright 不可用: {e}")
         except Exception as e:
-            self.logger.warning(f"Playwright 备选策略失败: {e}")
-
-        # 策略 3：传统方法作为最后兜底
-        self.logger.info("策略 3: 尝试传统 PMC 解析方法（兜底）...")
-        try:
-            article_url = f"https://www.ncbi.nlm.nih.gov/pmc/articles/PMC{pmc_id}/"
-            headers = {'User-Agent': self._get_random_user_agent(), 'Referer': 'https://www.google.com/'}
-            response = self.session.get(article_url, timeout=30, headers=headers)
-
-            if response.status_code == 200 and 'html' in response.headers.get('Content-Type', '').lower():
-                self.logger.info("成功获取 PMC 文章页面，开始解析 PDF 链接...")
-                pdf_url = self._extract_pdf_url_from_html(response.text, pmc_id)
-
-                if pdf_url:
-                    filename = self._generate_filename(doi, "PMC")
-                    output_path = self.download_dir / filename
-                    self.logger.info(f"尝试传统下载: {pdf_url}")
-
-                    # 简化的下载逻辑
-                    resp = self.session.get(pdf_url, timeout=30, stream=True)
-                    if resp.status_code == 200 and 'pdf' in resp.headers.get('Content-Type', '').lower():
-                        success, _ = self._download_and_save_pdf(response=resp, output_path=output_path)
-                        if success:
-                            self.logger.info("✅ 传统方法兜底成功")
-                            return True, output_path, None
-        except Exception as e:
-            self.logger.warning(f"传统方法兜底失败: {e}")
+            self.logger.warning(f"Playwright 备选策略异常: {e}")
 
         return False, None, "所有 PMC 下载策略均失败"
 
@@ -959,6 +976,8 @@ class PDFDownloader(LoggerMixin):
         """
         url = api_config['url']
         timeout = api_config.get('timeout', 15)
+        max_retries = api_config.get('max_retries', 3)
+        retry_delay = api_config.get('retry_delay', 2.0)
 
         headers = {
             'User-Agent': 'PubMiner/1.0 (https://github.com/pubminer; mailto:contact@example.com)',
@@ -967,66 +986,113 @@ class PDFDownloader(LoggerMixin):
 
         params = {"query.bibliographic": title, "rows": 5, "sort": "score", "order": "desc"}
 
-        try:
-            # 使用 API 管理器进行限流
-            response = api_manager.get(url, headers=headers, params=params, timeout=timeout, api_name='crossref')
+        # 实现自定义重试机制，专门处理SSL和其他网络错误
+        last_exception = None
 
-            response.raise_for_status()
-            data = response.json()
+        for attempt in range(max_retries + 1):
+            try:
+                if attempt > 0:
+                    delay = retry_delay * (2 ** (attempt - 1))  # 指数退避
+                    self.logger.info(f"CrossRef API 重试 {attempt}/{max_retries}，等待 {delay:.1f} 秒...")
+                    time.sleep(delay)
 
-            items = data.get("message", {}).get("items", [])
-            if not items:
-                self.logger.warning(f"CrossRef API 未找到结果: {title}")
-                return {"doi": None, "error": "未找到结果"}
+                self.logger.debug(f"CrossRef API 请求尝试 {attempt + 1}/{max_retries + 1}")
 
-            # 查找最佳匹配
-            best_match = None
-            best_score = 0
+                # 使用 API 管理器进行限流，但不使用其重试（我们有自己的重试）
+                response = api_manager.get(url, headers=headers, params=params, timeout=timeout, api_name='crossref')
 
-            for item in items:
-                item_title_list = item.get("title")
-                if not item_title_list:
-                    continue
+                response.raise_for_status()
+                data = response.json()
 
-                item_title = item_title_list[0]
-                score = self._calculate_similarity_score(title, item_title)
+                items = data.get("message", {}).get("items", [])
+                if not items:
+                    self.logger.warning(f"CrossRef API 未找到结果: {title}")
+                    return {"doi": None, "error": "未找到结果"}
 
-                # 使用较严格的阈值确保匹配质量
-                if score > best_score and score > 0.8:
-                    best_score = score
-                    best_match = {
-                        "doi":
-                        item.get("DOI", ""),
-                        "title":
-                        item_title,
-                        "score":
-                        score,
-                        "publisher":
-                        item.get("publisher", ""),
-                        "type":
-                        item.get("type", ""),
-                        "journal": (item.get("container-title") or [""])[0],
-                        "authors":
-                        item.get("author", []),
-                        "published":
-                        item.get("published-print", {}).get("date-parts", [[]])[0] if item.get("published-print") else [],
-                        "url":
-                        item.get("URL", "")
-                    }
+                # 查找最佳匹配
+                best_match = None
+                best_score = 0
 
-            if best_match:
-                self.logger.info(f"✅ 找到最佳 DOI 匹配: {best_match['doi']} (相似度: {best_score:.2f})")
-                return best_match
-            else:
-                self.logger.warning(f"未找到高置信度的 DOI 匹配: {title}")
-                return {"doi": None, "error": "未找到高置信度匹配"}
+                for item in items:
+                    item_title_list = item.get("title")
+                    if not item_title_list:
+                        continue
 
-        except requests.exceptions.RequestException as e:
-            self.logger.error(f"CrossRef API 网络错误: {e}")
-            return {"doi": None, "error": f"网络错误: {e}"}
-        except Exception as e:
-            self.logger.error(f"CrossRef API 查询异常: {e}")
-            return {"doi": None, "error": f"查询异常: {e}"}
+                    item_title = item_title_list[0]
+                    score = self._calculate_similarity_score(title, item_title)
+
+                    # 使用较严格的阈值确保匹配质量
+                    if score > best_score and score > 0.8:
+                        best_score = score
+                        best_match = {
+                            "doi":
+                            item.get("DOI", ""),
+                            "title":
+                            item_title,
+                            "score":
+                            score,
+                            "publisher":
+                            item.get("publisher", ""),
+                            "type":
+                            item.get("type", ""),
+                            "journal": (item.get("container-title") or [""])[0],
+                            "authors":
+                            item.get("author", []),
+                            "published":
+                            item.get("published-print", {}).get("date-parts", [[]])[0] if item.get("published-print") else [],
+                            "url":
+                            item.get("URL", "")
+                        }
+
+                if best_match:
+                    self.logger.info(f"✅ 找到最佳 DOI 匹配: {best_match['doi']} (相似度: {best_score:.2f})")
+                    return best_match
+                else:
+                    self.logger.warning(f"未找到高置信度的 DOI 匹配: {title}")
+                    return {"doi": None, "error": "未找到高置信度匹配"}
+
+            # 特定处理SSL错误
+            except requests.exceptions.SSLError as e:
+                last_exception = e
+                if attempt < max_retries:
+                    self.logger.warning(f"CrossRef API SSL错误: {e}，将重试")
+                    # SSL错误通常需要更长的等待时间
+                    time.sleep(retry_delay * 2)
+                continue
+
+            # 处理连接错误和超时
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout,
+                   requests.exceptions.HTTPError) as e:
+                last_exception = e
+
+                # 对于某些HTTP状态码，不需要重试
+                if hasattr(e, 'response') and e.response is not None:
+                    status_code = e.response.status_code
+                    if status_code in [400, 401, 403, 404, 422]:  # 客户端错误，重试无意义
+                        self.logger.error(f"CrossRef API 客户端错误 (状态码: {status_code})，不重试: {e}")
+                        return {"doi": None, "error": f"客户端错误: {e}"}
+                    elif status_code in [429, 500, 502, 503, 504]:  # 可重试的服务器错误
+                        if attempt < max_retries:
+                            self.logger.warning(f"CrossRef API 服务器错误 (状态码: {status_code})，将重试: {e}")
+                else:
+                    # 网络连接问题
+                    if attempt < max_retries:
+                        self.logger.warning(f"CrossRef API 网络连接错误，将重试: {e}")
+
+                continue
+
+            except Exception as e:
+                # 对于其他异常（如JSON解析错误），不重试
+                self.logger.error(f"CrossRef API 查询异常: {e}")
+                return {"doi": None, "error": f"查询异常: {e}"}
+
+        # 所有重试都失败了
+        error_msg = f"CrossRef API 查询失败，已重试 {max_retries} 次"
+        if last_exception:
+            error_msg += f"，最后错误: {last_exception}"
+
+        self.logger.error(error_msg)
+        return {"doi": None, "error": error_msg}
 
     def query_doi_batch(self, titles: List[str], max_workers: Optional[int] = None) -> List[Dict[str, Any]]:
         """
@@ -1485,6 +1551,76 @@ class PDFDownloader(LoggerMixin):
 
         return still_failed, newly_successful
 
+    def _validate_main_content_pdf(self, pdf_path: Path) -> bool:
+        """
+        验证下载的 PDF 是否为正文内容（排除补充材料）
+
+        Args:
+            pdf_path: PDF 文件路径
+
+        Returns:
+            bool: True 表示是正文 PDF，False 表示是补充材料
+        """
+        try:
+            import fitz  # PyMuPDF
+            doc = fitz.open(pdf_path)
+
+            if doc.page_count == 0:
+                self.logger.debug("PDF 文件无页面")
+                return False
+
+            # 获取前几页的文本内容进行分析
+            text_content = ""
+            max_pages = min(3, doc.page_count)
+            for page_num in range(max_pages):
+                page = doc[page_num]
+                text_content += page.get_text() + "\n"
+
+            doc.close()
+
+            # 转换为小写进行分析
+            text_lower = text_content.lower()
+
+            # 补充材料的关键词检查
+            supplement_keywords = [
+                "supplementary", "supplement", "supplementary material", "supplementary information", "supporting information",
+                "appendix", "supplementary data", "supplementary table", "supplementary figure", "supporting data",
+                "additional file", "supplementary methods", "supplementary results", "data supplement"
+            ]
+
+            # 如果文本中包含大量补充材料关键词，则认为是补充材料
+            supplement_count = sum(1 for keyword in supplement_keywords if keyword in text_lower)
+            supplement_ratio = supplement_count / len(supplement_keywords)
+
+            # 检查是否为正文内容
+            main_content_indicators = [
+                "abstract", "introduction", "methods", "results", "discussion", "conclusion", "background", "objective",
+                "materials and methods", "references", "acknowledgments"
+            ]
+
+            main_content_count = sum(1 for indicator in main_content_indicators if indicator in text_lower)
+
+            # 判断逻辑：
+            # 1. 如果补充材料关键词比例超过 0.3，可能是补充材料
+            # 2. 如果正文章节指标少于 2 个且补充材料关键词较多，可能是补充材料
+            # 3. 如果页面数很少（<5 页）且主要是图表 / 表格，可能是补充材料
+
+            is_supplement = (supplement_ratio > 0.3 or (main_content_count < 2 and supplement_count >= 2) or
+                             (doc.page_count < 5 and any(word in text_lower
+                                                         for word in ["figure", "table", "chart"]) and main_content_count < 2))
+
+            if is_supplement:
+                self.logger.debug(f"检测到补充材料 PDF (supplement_ratio={supplement_ratio:.2f}, main_content={main_content_count})")
+                return False
+            else:
+                self.logger.debug(f"检测到正文 PDF (supplement_ratio={supplement_ratio:.2f}, main_content={main_content_count})")
+                return True
+
+        except Exception as e:
+            self.logger.warning(f"PDF 内容验证失败: {e}")
+            # 如果验证失败，保守地认为是正文 PDF
+            return True
+
     def _download_with_playwright(self, pmc_id: str, doi: str = None) -> Tuple[bool, Optional[Path]]:
         """
         使用 Playwright 下载 PDF
@@ -1503,6 +1639,8 @@ class PDFDownloader(LoggerMixin):
             self.logger.debug("Playwright 未安装，跳过 Playwright 策略")
             raise ImportError("Playwright not available")
 
+        self.logger.debug(f"开始 Playwright 下载: PMC {pmc_id}, DOI {doi or'N/A'}")
+
         pmcid = f"PMC{pmc_id}"
         host = "pmc.ncbi.nlm.nih.gov"
         article_url = f"https://{host}/articles/{pmcid}/"
@@ -1518,40 +1656,114 @@ class PDFDownloader(LoggerMixin):
         output_path = self.download_dir / filename
 
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = None
             try:
-                ctx = browser.new_context()
+                browser = p.chromium.launch(headless=True)
+                ctx = browser.new_context(user_agent=self._get_random_user_agent(), viewport={'width': 1920, 'height': 1080})
                 page = ctx.new_page()
 
-                # 进入文章页
-                page.goto(article_url, wait_until="domcontentloaded")
+                self.logger.debug(f"导航到 PMC 文章页面: {article_url}")
+                # 进入文章页，增加超时和错误处理
+                try:
+                    page.goto(article_url, wait_until="domcontentloaded", timeout=30000)
+                except PWTimeout as e:
+                    self.logger.warning(f"PMC 页面加载超时: {e}")
+                    return False, None
+                except Exception as e:
+                    self.logger.warning(f"PMC 页面导航失败: {e}")
+                    return False, None
 
-                # --- 1) 优先：CSS 精确定位正文 PDF 按钮 ---
+                self.logger.debug("开始定位 PDF 下载链接...")
+
+                # --- 策略 1: 精确定位正文 PDF 链接（排除补充材料）---
+                # 1.1: 直接的 PDF 下载链接，排除 supplementary 和 supplemental
                 pdf_link = page.locator("a[href$='/pdf/']").first
                 if not pdf_link.count():
                     pdf_link = page.locator("a[href$='/pdf']").first
 
-                # --- 2) 回退：ARIA 名称以 PDF 开头的链接（排除补充材料的文件名）---
-                if not pdf_link.count():
-                    # 例如 "PDF (2.4 MB)"
-                    pdf_link = page.get_by_role("link", name=re.compile(r"^PDF\\b", re.I)).first
+                # 1.2: 筛选掉补充材料链接
+                if pdf_link.count() > 0:
+                    # 检查是否有多个 PDF 链接，优先选择非补充材料的
+                    all_pdf_links = page.locator("a[href*='pdf'], a[href$='pdf/'], a[href$='.pdf']")
+                    for link_idx in range(all_pdf_links.count()):
+                        link = all_pdf_links.nth(link_idx)
+                        href = link.get_attribute("href") or ""
+                        text = link.inner_text() or ""
 
-                # --- 3) 兜底：直接查找包含 PDF 的链接，排除 tooltip ---
+                        # 排除补充材料相关链接
+                        if not any(keyword in href.lower() or keyword in text.lower()
+                                   for keyword in ["supplement", "supplementary", "supp", "appendix", "si"]):
+                            pdf_link = link
+                            self.logger.debug(f"找到正文 PDF 链接: href={href}, text={text}")
+                            break
+
+                # --- 策略 2: 通过按钮文本和 ARIA 标签精确定位 ---
                 if not pdf_link.count():
-                    # 查找所有包含 "PDF" 的可见链接
-                    pdf_links = page.locator("a:has-text('PDF')").filter(has_not_text="tooltip").first
-                    if pdf_links.count() > 0:
-                        pdf_link = pdf_links
+                    self.logger.debug("尝试通过精确的按钮文本定位...")
+                    # 2.1: 精确匹配 "PDF" 开头的链接（排除包含 supplement 的）
+                    try:
+                        pdf_candidates = page.get_by_role("link", name=re.compile(r"^PDF\\b", re.I))
+                        for idx in range(pdf_candidates.count()):
+                            candidate = pdf_candidates.nth(idx)
+                            text = candidate.inner_text() or ""
+                            href = candidate.get_attribute("href") or ""
+
+                            # 确保不是补充材料
+                            if not any(keyword in text.lower() or keyword in href.lower()
+                                       for keyword in ["supplement", "supplementary", "supp", "appendix", "si"]):
+                                pdf_link = candidate
+                                self.logger.debug(f"找到正文 PDF 按钮: text={text}, href={href}")
+                                break
+                    except Exception as e:
+                        self.logger.debug(f"精确文本搜索失败: {e}")
+
+                # --- 策略 3: 通过特定的 HTML 结构定位 ---
+                if not pdf_link.count():
+                    self.logger.debug("尝试通过 HTML 结构定位...")
+                    try:
+                        # 查找在主要内容区域的 PDF 链接
+                        content_links = page.locator(".main-content, .article-content, .full-text-view a[href*='pdf']").first
+                        if content_links.count() > 0:
+                            pdf_link = content_links
+                            self.logger.debug("在主要内容区域找到 PDF 链接")
+                    except Exception as e:
+                        self.logger.debug(f"HTML 结构搜索失败: {e}")
+
+                # --- 策略 4: 最后的通用搜索（带排除规则）---
+                if not pdf_link.count():
+                    self.logger.debug("尝试通用搜索，但严格排除补充材料...")
+                    try:
+                        all_links = page.locator("a:has-text('PDF')")
+                        best_link = None
+
+                        for idx in range(min(all_links.count(), 10)):  # 只检查前 10 个
+                            link = all_links.nth(idx)
+                            text = link.inner_text() or ""
+                            href = link.get_attribute("href") or ""
+
+                            # 严格排除补充材料
+                            excluded_keywords = [
+                                "supplement", "supplementary", "supp", "appendix", "si", "figure", "table", "method", "data",
+                                "protocol"
+                            ]
+
+                            if not any(keyword in text.lower() or keyword in href.lower() for keyword in excluded_keywords):
+                                best_link = link
+                                self.logger.debug(f"候选 PDF 链接: text={text}, href={href}")
+                                break
+
+                        if best_link:
+                            pdf_link = best_link
+                    except Exception as e:
+                        self.logger.debug(f"通用搜索失败: {e}")
 
                 if not pdf_link.count():
-                    # 最后尝试：查找实际的链接元素，排除 tooltip span
-                    all_links = page.locator("a[href*='pdf'], a[href$='pdf/'], a[href$='.pdf']").first
-                    if all_links.count() > 0:
-                        pdf_link = all_links
-
-                if not pdf_link.count():
-                    self.logger.warning("找不到正文 PDF 按钮；页面结构可能变化。")
+                    self.logger.warning("找不到正文 PDF 按钮；页面结构可能变化或只有补充材料 PDF。")
                     return False, None
+
+                self.logger.debug("找到 PDF 链接，开始下载...")
+                pdf_href = pdf_link.get_attribute("href") or "N/A"
+                self.logger.debug(f"PDF 链接 href: {pdf_href}")
 
                 # 有些站点把 PDF 链接设为 target=_blank，这里同时监听可能的 popup
                 popup = None
@@ -1559,52 +1771,119 @@ class PDFDownloader(LoggerMixin):
                     with page.expect_popup(timeout=2000) as pop_ctx:
                         pdf_link.click(timeout=10000)
                     popup = pop_ctx.value
+                    self.logger.debug("检测到弹窗，使用弹窗处理")
                 except PWTimeout:
                     # 没有新标签，就在当前页
-                    pdf_link.click(timeout=10000)
+                    try:
+                        pdf_link.click(timeout=10000)
+                        self.logger.debug("在当前页面点击 PDF 链接")
+                    except Exception as e:
+                        self.logger.warning(f"点击 PDF 链接失败: {e}")
+                        return False, None
+                except Exception as e:
+                    self.logger.warning(f"PDF 链接点击异常: {e}")
+                    return False, None
 
                 # 等校验脚本跑完（给得稍微宽裕一点）
-                page.wait_for_load_state("networkidle")
-                page.wait_for_timeout(2000)
+                try:
+                    page.wait_for_load_state("networkidle", timeout=15000)
+                    page.wait_for_timeout(2000)
+                except PWTimeout as e:
+                    self.logger.warning(f"等待网络空闲超时: {e}")
+                    # 继续尝试下载
+                except Exception as e:
+                    self.logger.warning(f"等待页面状态异常: {e}")
+
+                # 先下载到临时文件进行验证
+                import tempfile
+                temp_output = output_path.with_suffix('.tmp')
+                successful_download = False
 
                 # 用与页面同一会话的 request 客户端获取 PDF
-                # 不直接用 popup 的 content，因为有时是中间页 / 准备页
-                resp = ctx.request.get(pdf_url)
-                if resp.ok and resp.headers.get("content-type", "").startswith("application/pdf"):
-                    with open(output_path, "wb") as f:
-                        f.write(resp.body())
-                    # 更新统计信息
-                    file_size = output_path.stat().st_size
-                    self.stats['total_size'] += file_size
-                    self.logger.info(f"✅ Playwright 下载成功: 通过 ctx.request ({file_size/1024:.1f}KB)")
-                    return True, output_path
-                else:
+                self.logger.debug(f"尝试从 PDF URL 下载: {pdf_url}")
+                try:
+                    resp = ctx.request.get(pdf_url, timeout=30000)
+                    if resp.ok and resp.headers.get("content-type", "").startswith("application/pdf"):
+                        # 先保存到临时文件
+                        with open(temp_output, "wb") as f:
+                            f.write(resp.body())
+
+                        # 验证是否为正文 PDF（通过内容检查排除补充材料）
+                        if self._validate_main_content_pdf(temp_output):
+                            temp_output.rename(output_path)
+                            successful_download = True
+                            # 更新统计信息
+                            file_size = output_path.stat().st_size
+                            self.stats['total_size'] += file_size
+                            self.logger.info(f"✅ Playwright 下载成功: 通过 ctx.request ({file_size/1024:.1f}KB)")
+                            return True, output_path
+                        else:
+                            temp_output.unlink(missing_ok=True)
+                            self.logger.debug("下载的不是正文 PDF，尝试其他方法...")
+                    else:
+                        self.logger.debug(
+                            f"直接 PDF URL 下载失败: status={resp.status_code}, content-type={resp.headers.get('content-type','N/A')}"
+                        )
+                except Exception as e:
+                    self.logger.warning(f"从 PDF URL 下载异常: {e}")
+                finally:
+                    temp_output.unlink(missing_ok=True)
+
+                if not successful_download:
                     # 再尝试直接从当前 DOM 读 href（有时带 query 的真实 pdf 地址）
+                    self.logger.debug("尝试从 DOM href 下载...")
                     try:
                         href = pdf_link.get_attribute("href")
                         if href and not href.startswith("http"):
                             href = f"https://{host}{href}"
                         if href:
-                            r2 = ctx.request.get(href)
+                            self.logger.debug(f"尝试从 href 下载: {href}")
+                            r2 = ctx.request.get(href, timeout=30000)
                             if r2.ok and r2.headers.get("content-type", "").startswith("application/pdf"):
-                                with open(output_path, "wb") as f:
-                                    f.write(r2.body())
-                                # 更新统计信息
-                                file_size = output_path.stat().st_size
-                                self.stats['total_size'] += file_size
-                                self.logger.info(f"✅ Playwright 下载成功: 通过 DOM href ({file_size/1024:.1f}KB)")
-                                return True, output_path
-                            else:
-                                self.logger.warning("Playwright: DOM href not PDF")
-                        else:
-                            self.logger.warning("Playwright: no href")
-                    except Exception as e:
-                        self.logger.warning(f"Playwright: exception reading href: {e}")
+                                # 先保存到临时文件进行验证
+                                temp_output2 = output_path.with_suffix('.tmp2')
+                                try:
+                                    with open(temp_output2, "wb") as f:
+                                        f.write(r2.body())
 
+                                    if self._validate_main_content_pdf(temp_output2):
+                                        temp_output2.rename(output_path)
+                                        successful_download = True
+                                        # 更新统计信息
+                                        file_size = output_path.stat().st_size
+                                        self.stats['total_size'] += file_size
+                                        self.logger.info(f"✅ Playwright 下载成功: 通过 DOM href ({file_size/1024:.1f}KB)")
+                                        return True, output_path
+                                    else:
+                                        temp_output2.unlink(missing_ok=True)
+                                        self.logger.debug("DOM href 下载的不是正文 PDF")
+                                finally:
+                                    temp_output2.unlink(missing_ok=True)
+                            else:
+                                self.logger.warning(
+                                    f"DOM href not PDF: status={r2.status_code}, content-type={r2.headers.get('content-type','N/A')}"
+                                )
+                        else:
+                            self.logger.warning("Playwright: 无法获取 href")
+                    except Exception as e:
+                        self.logger.warning(f"从 DOM href 下载异常: {e}")
+
+                if successful_download:
+                    return True, output_path
+
+                self.logger.warning("所有 Playwright 下载方法均失败或下载到补充材料")
                 return False, None
 
+            except Exception as e:
+                self.logger.error(f"Playwright 下载过程异常: {e}")
+                return False, None
             finally:
-                browser.close()
+                if browser:
+                    try:
+                        browser.close()
+                        self.logger.debug("Playwright 浏览器已关闭")
+                    except Exception as e:
+                        self.logger.warning(f"关闭 Playwright 浏览器时异常: {e}")
 
     def __del__(self):
         """析构函数，关闭会话"""

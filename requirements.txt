@@ -6,7 +6,7 @@ pandas>=1.5.0
 numpy>=1.21.0
 
 # 文档处理
-PyMuPDF>=1.20.0  # PDF文本提取
+PyMuPDF>=1.20.0  # PDF文本提取 (fitz)
 pdf2image
 pytesseract>=0.3.10  # OCR文字识别
 Pillow>=9.0.0  # 图像处理
@@ -24,17 +24,28 @@ xlsxwriter>=3.0.0  # Excel写入
 colorlog>=6.0.0  # 彩色日志输出
 python-dotenv>=0.19.0  # 环境变量管理
 
+# 终端UI和进度条
+rich>=13.0.0
+tqdm>=4.64.0
+
+# 生物信息学
+biopython>=1.79
+
+# AI分析 (可选，根据需要安装)
+# openai>=1.0.0  # OpenAI API
+
 # Web界面 (可选)
 flask>=2.2.0
 flask-cors>=3.0.0
 
 # 异步处理
 aiohttp>=3.8.0
-asyncio-throttle>=1.0.0
 
 # 文本处理
 regex>=2022.0.0  # 高级正则表达式
-jieba>=0.42.1  # 中文分词 (可选)
+
+# PDF下载增强 (可选)
+playwright>=1.40.0  # 网页自动化，用于复杂PDF下载
 
 # 科学计算
 scipy>=1.9.0  # 科学计算库
@@ -49,10 +60,8 @@ flake8>=5.0.0  # 代码检查
 psutil>=5.9.0  # 系统资源监控
 memory-profiler>=0.60.0  # 内存分析
 
-biopython
-tqdm
-rich
-openai
-
-# 注意: 
-# 1. OCR功能需要安装 Tesseract OCR 引擎
+# 注意:
+# 1. OCR 功能需要安装 Tesseract OCR 引擎
+# 2. Playwright 需要运行 playwright install chromium
+# 3. LLM 功能需要配置相应的 API 密钥
+# 4. 某些依赖可能需要系统级依赖包
